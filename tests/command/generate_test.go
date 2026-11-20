@@ -1,14 +1,14 @@
 package command_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/bidirekt/go-sdk/internal/command"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const deletePet = `package petstore
@@ -36,9 +36,13 @@ provides:
 func newModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 	checkout, err := filepath.Abs(filepath.Join("..", ".."))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	dir, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	goMod := "module example.com/petstore\n\ngo 1.26.0\n\nrequire github.com/bidirekt/go-sdk v0.0.0\n\nreplace github.com/bidirekt/go-sdk => " + checkout + "\n"
 	writeFile(t, filepath.Join(dir, "go.mod"), goMod)
 	for name, content := range files {
@@ -49,14 +53,20 @@ func newModule(t *testing.T, files map[string]string) string {
 
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-	require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 }
 
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	content, err := os.ReadFile(path)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	return string(content)
 }
 
@@ -66,8 +76,8 @@ func TestWritesTheContractIntoANewContractsFolder(t *testing.T) {
 
 	result := command.ArgsToResult([]string{"generate"}, dir)
 
-	assert.Equal(t, command.Result{}, result, "result")
-	assert.Equal(t, deletePetYaml, readFile(t, filepath.Join(dir, "contracts", "generated.yaml")), "output")
+	equal(t, "result", result, command.Result{})
+	equal(t, "output", readFile(t, filepath.Join(dir, "contracts", "generated.yaml")), deletePetYaml)
 }
 
 func TestWritesTheContractWhereOutSays(t *testing.T) {
@@ -76,8 +86,8 @@ func TestWritesTheContractWhereOutSays(t *testing.T) {
 
 	result := command.ArgsToResult([]string{"generate", "--out=api/contract.yaml"}, dir)
 
-	assert.Equal(t, command.Result{}, result, "result")
-	assert.Equal(t, deletePetYaml, readFile(t, filepath.Join(dir, "api", "contract.yaml")), "output")
+	equal(t, "result", result, command.Result{})
+	equal(t, "output", readFile(t, filepath.Join(dir, "api", "contract.yaml")), deletePetYaml)
 }
 
 func TestPassesTheCheckWhenTheFileIsUpToDateEvenWithWindowsLineEndings(t *testing.T) {
@@ -89,7 +99,7 @@ func TestPassesTheCheckWhenTheFileIsUpToDateEvenWithWindowsLineEndings(t *testin
 
 	result := command.ArgsToResult([]string{"generate", "--check"}, dir)
 
-	assert.Equal(t, command.Result{}, result)
+	equal(t, "result", result, command.Result{})
 }
 
 func TestFailsTheCheckWithoutWritingWhenTheFileIsOutOfDate(t *testing.T) {
@@ -101,8 +111,8 @@ func TestFailsTheCheckWithoutWritingWhenTheFileIsOutOfDate(t *testing.T) {
 
 	result := command.ArgsToResult([]string{"generate", "--check"}, dir)
 
-	assert.Equal(t, command.Result{ExitCode: 1, Stderr: "\"contracts/generated.yaml\" is out of date: run generate without --check\n"}, result, "result")
-	assert.Equal(t, "# stale\n", readFile(t, filepath.Join(dir, "contracts", "generated.yaml")), "the file is not written")
+	equal(t, "result", result, command.Result{ExitCode: 1, Stderr: "\"contracts/generated.yaml\" is out of date: run generate without --check\n"})
+	equal(t, "the file is not written", readFile(t, filepath.Join(dir, "contracts", "generated.yaml")), "# stale\n")
 }
 
 func TestFailsTheCheckWithoutWritingWhenTheFileDoesNotExist(t *testing.T) {
@@ -111,8 +121,10 @@ func TestFailsTheCheckWithoutWritingWhenTheFileDoesNotExist(t *testing.T) {
 
 	result := command.ArgsToResult([]string{"generate", "--check"}, dir)
 
-	assert.Equal(t, command.Result{ExitCode: 1, Stderr: "\"contracts/generated.yaml\" does not exist: run generate without --check\n"}, result, "result")
-	assert.NoDirExists(t, filepath.Join(dir, "contracts"), "nothing is written")
+	equal(t, "result", result, command.Result{ExitCode: 1, Stderr: "\"contracts/generated.yaml\" does not exist: run generate without --check\n"})
+	if info, err := os.Stat(filepath.Join(dir, "contracts")); err == nil && info.IsDir() {
+		t.Errorf("nothing is written: got a folder at %s, want none", filepath.Join(dir, "contracts"))
+	}
 }
 
 func TestPrintsErrorsSortedByFileAndLineAndWritesNothing(t *testing.T) {
@@ -140,11 +152,13 @@ var _ = bidirekt.Provides("get", "/a")
 
 	result := command.ArgsToResult([]string{"generate"}, dir)
 
-	assert.Equal(t, command.Result{ExitCode: 1, Stderr: `a.go:7 "aMethod" cannot be read without running the code: write a literal or a constant
+	equal(t, "result", result, command.Result{ExitCode: 1, Stderr: `a.go:7 "aMethod" cannot be read without running the code: write a literal or a constant
 a.go:9 method "get" must be uppercase: write "GET"
 b.go:7 "bPath" cannot be read without running the code: write a literal or a constant
-`}, result, "result")
-	assert.NoDirExists(t, filepath.Join(dir, "contracts"), "nothing is written")
+`})
+	if info, err := os.Stat(filepath.Join(dir, "contracts")); err == nil && info.IsDir() {
+		t.Errorf("nothing is written: got a folder at %s, want none", filepath.Join(dir, "contracts"))
+	}
 }
 
 func TestShowsFilesRelativeToTheCurrentFolder(t *testing.T) {
@@ -158,11 +172,13 @@ var _ = bidirekt.Provides("get", "/pets")
 `,
 	})
 
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "docs"), 0o755))
+	if err := os.Mkdir(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 
 	result := command.ArgsToResult([]string{"generate", "--project", "../api"}, filepath.Join(dir, "docs"))
 
-	assert.Equal(t, command.Result{ExitCode: 1, Stderr: "../api/routes.go:5 method \"get\" must be uppercase: write \"GET\"\n"}, result)
+	equal(t, "result", result, command.Result{ExitCode: 1, Stderr: "../api/routes.go:5 method \"get\" must be uppercase: write \"GET\"\n"})
 }
 
 func TestFailsWhenTheProjectFolderDoesNotExist(t *testing.T) {
@@ -171,7 +187,7 @@ func TestFailsWhenTheProjectFolderDoesNotExist(t *testing.T) {
 
 	result := command.ArgsToResult([]string{"generate", "--project", "cmd/api"}, dir)
 
-	assert.Equal(t, command.Result{ExitCode: 1, Stderr: "project \"cmd/api\" not found\n"}, result)
+	equal(t, "result", result, command.Result{ExitCode: 1, Stderr: "project \"cmd/api\" not found\n"})
 }
 
 func TestFailsWithoutWritingWhenNothingIsDeclared(t *testing.T) {
@@ -180,21 +196,25 @@ func TestFailsWithoutWritingWhenNothingIsDeclared(t *testing.T) {
 
 	result := command.ArgsToResult([]string{"generate"}, dir)
 
-	assert.Equal(t, command.Result{ExitCode: 1, Stderr: "no github.com/bidirekt/go-sdk declaration found in \".\": nothing to generate\n"}, result, "result")
-	assert.NoDirExists(t, filepath.Join(dir, "contracts"), "nothing is written")
+	equal(t, "result", result, command.Result{ExitCode: 1, Stderr: "no github.com/bidirekt/go-sdk declaration found in \".\": nothing to generate\n"})
+	if info, err := os.Stat(filepath.Join(dir, "contracts")); err == nil && info.IsDir() {
+		t.Errorf("nothing is written: got a folder at %s, want none", filepath.Join(dir, "contracts"))
+	}
 }
 
 func TestFailsWhenNoGoModIsFoundAtOrAboveTheProject(t *testing.T) {
 	t.Parallel()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 
 	result := command.ArgsToResult([]string{"generate"}, dir)
 
-	assert.Equal(t, command.Result{
+	equal(t, "result", result, command.Result{
 		ExitCode: 1,
 		Stderr:   "no go.mod found in \".\" or any folder above it: run generate in a folder of a Go module, or pass --project <a folder of the module>\n",
-	}, result)
+	})
 }
 
 func TestReadsOnlyTheProjectFolderOfAModule(t *testing.T) {
@@ -220,8 +240,8 @@ func main() {}
 
 	result := command.ArgsToResult([]string{"generate", "--project", "cmd/worker"}, dir)
 
-	assert.Equal(t, command.Result{}, result, "result")
-	assert.Equal(t, `# Generated by github.com/bidirekt/go-sdk. Do not edit.
+	equal(t, "result", result, command.Result{})
+	equal(t, "the worker's contract, written in its folder", readFile(t, filepath.Join(dir, "cmd", "worker", "contracts", "generated.yaml")), `# Generated by github.com/bidirekt/go-sdk. Do not edit.
 consumes:
   petstore_api:
     rest:
@@ -229,21 +249,27 @@ consumes:
         get:
           responses:
             200: ~
-`, readFile(t, filepath.Join(dir, "cmd", "worker", "contracts", "generated.yaml")), "the worker's contract, written in its folder")
-	assert.NoDirExists(t, filepath.Join(dir, "contracts"), "nothing is written at the module root")
+`)
+	if info, err := os.Stat(filepath.Join(dir, "contracts")); err == nil && info.IsDir() {
+		t.Errorf("nothing is written at the module root: got a folder at %s, want none", filepath.Join(dir, "contracts"))
+	}
 }
 
 func TestFailsWithTheSystemMessageWhenTheOutputCannotBeWritten(t *testing.T) {
 	t.Parallel()
 	dir := newModule(t, map[string]string{"pets.go": deletePet})
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "folder"), 0o755))
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "locked"), 0o555))
+	if err := os.MkdirAll(filepath.Join(dir, "folder"), 0o755); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "blocked"), nil, 0o644); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 
 	toFolder := command.ArgsToResult([]string{"generate", "--out", "folder"}, dir)
-	toLocked := command.ArgsToResult([]string{"generate", "--out", "locked/generated.yaml"}, dir)
+	underFile := command.ArgsToResult([]string{"generate", "--out", "blocked/generated.yaml"}, dir)
 
-	assert.Equal(t, command.Result{ExitCode: 1, Stderr: "cannot write \"folder\": it is a folder\n"}, toFolder, "a folder")
-	assert.Equal(t, command.Result{ExitCode: 1, Stderr: "cannot write \"locked/generated.yaml\": permission denied\n"}, toLocked, "a folder without write permission")
+	equal(t, "a folder", toFolder, command.Result{ExitCode: 1, Stderr: "cannot write \"folder\": it is a folder\n"})
+	equal(t, "a file in the way of the folder", underFile, command.Result{ExitCode: 1, Stderr: "cannot write \"blocked/generated.yaml\": not a directory\n"})
 }
 
 func TestPrintsTheUsageForWrongArguments(t *testing.T) {
@@ -258,6 +284,18 @@ func TestPrintsTheUsageForWrongArguments(t *testing.T) {
 		{"generate", "--out"},
 		{"generate", "--check=true"},
 	} {
-		assert.Equal(t, usage, command.ArgsToResult(args, t.TempDir()), "args %q", args)
+		equal(t, fmt.Sprintf("args %q", args), command.ArgsToResult(args, t.TempDir()), usage)
 	}
+}
+
+func equal(t *testing.T, label string, got, want any) {
+	t.Helper()
+	if reflect.DeepEqual(got, want) {
+		return
+	}
+	if gotText, isText := got.(string); isText {
+		t.Errorf("%s:\ngot:\n%s\nwant:\n%s", label, gotText, want)
+		return
+	}
+	t.Errorf("%s:\ngot:  %#v\nwant: %#v", label, got, want)
 }

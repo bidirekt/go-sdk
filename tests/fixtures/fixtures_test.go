@@ -4,13 +4,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/bidirekt/go-sdk/internal/command"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 var fixtures = filepath.Join("..", "..", "testdata", "fixtures")
@@ -26,7 +25,9 @@ func TestMain(m *testing.M) {
 
 func TestGeneratesTheExpectedResult(t *testing.T) {
 	entries, err := os.ReadDir(fixtures)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -41,7 +42,9 @@ func TestGeneratesTheExpectedResult(t *testing.T) {
 func generatesTheExpectedResult(t *testing.T, caseDir string) {
 	expectedYaml, hasYaml := readIfExists(t, filepath.Join(caseDir, "expected.yaml"))
 	expectedStderr, hasStderr := readIfExists(t, filepath.Join(caseDir, "expected-stderr.txt"))
-	require.True(t, hasYaml || hasStderr, "a case has expected.yaml, expected-stderr.txt or both")
+	if !hasYaml && !hasStderr {
+		t.Fatalf("a case has expected.yaml, expected-stderr.txt or both: got false, want true")
+	}
 	cwd := copyCase(t, caseDir)
 	args := append([]string{"generate"}, caseArguments(t, cwd)...)
 	output := projectOutput(cwd, args)
@@ -49,20 +52,22 @@ func generatesTheExpectedResult(t *testing.T, caseDir string) {
 
 	got := command.ArgsToResult(args, cwd)
 
-	assert.Equal(t, expectedStderr, got.Stderr, "stderr")
+	equal(t, "stderr", got.Stderr, expectedStderr)
 	after := filesUnder(t, cwd)
 	if !hasYaml {
-		assert.Equal(t, 1, got.ExitCode, "exit code")
-		assert.Equal(t, before, after, "nothing is written")
+		equal(t, "exit code", got.ExitCode, 1)
+		equal(t, "nothing is written", after, before)
 		return
 	}
-	assert.Equal(t, 0, got.ExitCode, "exit code")
+	equal(t, "exit code", got.ExitCode, 0)
 	relativeOutput, err := filepath.Rel(cwd, output)
-	require.NoError(t, err)
-	assert.Equal(t, expectedYaml, after[relativeOutput], "output")
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
+	equal(t, "output", after[relativeOutput], expectedYaml)
 	delete(before, relativeOutput)
 	delete(after, relativeOutput)
-	assert.Equal(t, before, after, "nothing but the output is written")
+	equal(t, "nothing but the output is written", after, before)
 }
 
 // The result is read from contracts/generated.yaml of the project folder: the case folder, or the folder
@@ -90,23 +95,33 @@ func caseArguments(t *testing.T, cwd string) []string {
 func copyCase(t *testing.T, caseDir string) string {
 	t.Helper()
 	root, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	cwd := filepath.Join(root, filepath.Base(caseDir))
-	require.NoError(t, os.CopyFS(cwd, os.DirFS(caseDir)))
+	if err := os.CopyFS(cwd, os.DirFS(caseDir)); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	for relative := range filesUnder(t, cwd) {
-		if filepath.Base(relative) != "go.mod" && filepath.Base(relative) != "go.work" {
+		if filepath.Base(relative) != "go.mod" {
 			continue
 		}
 		original, err := filepath.Abs(filepath.Join(caseDir, filepath.Dir(relative)))
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("got error %v, want none", err)
+		}
 		path := filepath.Join(cwd, relative)
 		content, err := os.ReadFile(path)
-		require.NoError(t, err)
+		if err != nil {
+			t.Fatalf("got error %v, want none", err)
+		}
 		rewritten := sdkReplace.ReplaceAllStringFunc(string(content), func(replace string) string {
 			parts := sdkReplace.FindStringSubmatch(replace)
 			return parts[1] + filepath.Join(original, parts[2])
 		})
-		require.NoError(t, os.WriteFile(path, []byte(rewritten), 0o644))
+		if err := os.WriteFile(path, []byte(rewritten), 0o644); err != nil {
+			t.Fatalf("got error %v, want none", err)
+		}
 	}
 	return cwd
 }
@@ -117,7 +132,9 @@ func readIfExists(t *testing.T, path string) (string, bool) {
 	if os.IsNotExist(err) {
 		return "", false
 	}
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	return string(content), true
 }
 
@@ -136,6 +153,20 @@ func filesUnder(t *testing.T, dir string) map[string]string {
 		files[relative] = string(content)
 		return err
 	})
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	return files
+}
+
+func equal(t *testing.T, label string, got, want any) {
+	t.Helper()
+	if reflect.DeepEqual(got, want) {
+		return
+	}
+	if gotText, isText := got.(string); isText {
+		t.Errorf("%s:\ngot:\n%s\nwant:\n%s", label, gotText, want)
+		return
+	}
+	t.Errorf("%s:\ngot:  %#v\nwant: %#v", label, got, want)
 }

@@ -41,6 +41,13 @@ func projectToLoadedPackages(project Project) (loadedPackages, []model.Diagnosti
 	local := map[string]bool{}
 	var patterns []string
 	for _, pkg := range graph {
+		if isRejectedPattern(pkg) {
+			var diagnostics []model.Diagnostic
+			for _, packageError := range pkg.Errors {
+				diagnostics = append(diagnostics, listErrorToDiagnostics(packageError, project.Dir)...)
+			}
+			return loadedPackages{}, diagnostics
+		}
 		inProject[pkg.PkgPath] = true
 		patterns = append(patterns, pkg.PkgPath)
 	}
@@ -74,19 +81,14 @@ func projectToLoadedPackages(project Project) (loadedPackages, []model.Diagnosti
 	return loadedPackages{fset: fset, packages: loaded, byPath: byPath, inProject: inProject, local: local}, nil
 }
 
-func isLocalModule(module *packages.Module) bool {
-	return module != nil && (module.Main || (module.Replace != nil && module.Replace.Version == ""))
+// When go list rejects the pattern itself, go/packages returns it as a package without name nor module; a
+// package whose package clause does not parse has no name either, but has its module.
+func isRejectedPattern(pkg *packages.Package) bool {
+	return pkg.Name == "" && pkg.Module == nil && len(pkg.Errors) > 0
 }
 
-func importsSDK(pkg *packages.Package) bool {
-	for _, file := range pkg.Syntax {
-		for _, spec := range file.Imports {
-			if path, err := strconv.Unquote(spec.Path.Value); err == nil && path == sdkPath {
-				return true
-			}
-		}
-	}
-	return false
+func isLocalModule(module *packages.Module) bool {
+	return module != nil && (module.Main || (module.Replace != nil && module.Replace.Version == ""))
 }
 
 // As go build does: the load errors of the package and of its imports first, then the compiler's output,

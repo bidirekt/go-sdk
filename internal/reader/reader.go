@@ -26,8 +26,6 @@ type reading struct {
 	project            Project
 	loaded             loadedPackages
 	result             Result
-	reported           map[model.Diagnostic]bool
-	reportedGo         map[*packages.Package]bool
 	schemaNames        map[*types.TypeName]string
 	schemaDeclarations []schemaDeclaration
 	enumNames          map[*types.TypeName]string
@@ -39,6 +37,7 @@ type reading struct {
 	directFields       map[*types.Struct][]*directField
 	jsonFields         map[*types.Struct]structFields
 	fieldNodes         map[*types.Var]model.Node
+	inProgress         map[*types.TypeName]bool
 }
 
 func ProjectToResult(project Project) Result {
@@ -49,8 +48,6 @@ func ProjectToResult(project Project) Result {
 	reading := &reading{
 		project:          project,
 		loaded:           loaded,
-		reported:         map[model.Diagnostic]bool{},
-		reportedGo:       map[*packages.Package]bool{},
 		schemaNames:      map[*types.TypeName]string{},
 		enumNames:        map[*types.TypeName]string{},
 		enumDeclarations: map[*types.TypeName]*ast.CallExpr{},
@@ -59,6 +56,7 @@ func ProjectToResult(project Project) Result {
 		directFields:     map[*types.Struct][]*directField{},
 		jsonFields:       map[*types.Struct]structFields{},
 		fieldNodes:       map[*types.Var]model.Node{},
+		inProgress:       map[*types.TypeName]bool{},
 	}
 	reading.read()
 	return reading.result
@@ -67,7 +65,7 @@ func ProjectToResult(project Project) Result {
 func (this *reading) read() {
 	var declaring []packageCalls
 	for _, pkg := range this.loaded.packages {
-		if !importsSDK(pkg) {
+		if _, found := pkg.Imports[sdkPath]; !found {
 			continue
 		}
 		if len(pkg.Errors) > 0 {
@@ -90,6 +88,7 @@ func (this *reading) read() {
 	this.readProjectStructs()
 	this.readCalls(project, this.readResource, "Provides", "Consumes")
 	this.readSchemaDeclarationTypes()
+	this.readTagReferences()
 	this.readUnionMembers()
 	this.schemasToContract()
 }
@@ -113,30 +112,15 @@ func (this *reading) addError(node ast.Node, format string, arguments ...any) {
 }
 
 func (this *reading) addErrorAt(position token.Pos, format string, arguments ...any) {
-	this.appendDiagnostic(&this.result.Errors, model.Diagnostic{Message: fmt.Sprintf(format, arguments...), Location: this.locationAt(position)})
+	this.result.Errors = append(this.result.Errors, model.Diagnostic{Message: fmt.Sprintf(format, arguments...), Location: this.locationAt(position)})
 }
 
 func (this *reading) addWarningAt(position token.Pos, format string, arguments ...any) {
-	this.appendDiagnostic(&this.result.Warnings, model.Diagnostic{Message: fmt.Sprintf(format, arguments...), Location: this.locationAt(position)})
-}
-
-// A diagnostic reached more than once, like a field's from every schema that embeds its struct, is kept once.
-func (this *reading) appendDiagnostic(diagnostics *[]model.Diagnostic, diagnostic model.Diagnostic) {
-	if this.reported[diagnostic] {
-		return
-	}
-	this.reported[diagnostic] = true
-	*diagnostics = append(*diagnostics, diagnostic)
+	this.result.Warnings = append(this.result.Warnings, model.Diagnostic{Message: fmt.Sprintf(format, arguments...), Location: this.locationAt(position)})
 }
 
 func (this *reading) reportGoErrors(pkg *packages.Package) {
-	if this.reportedGo[pkg] {
-		return
-	}
-	this.reportedGo[pkg] = true
-	for _, diagnostic := range packageToGoErrors(pkg, this.project.Dir) {
-		this.appendDiagnostic(&this.result.Errors, diagnostic)
-	}
+	this.result.Errors = append(this.result.Errors, packageToGoErrors(pkg, this.project.Dir)...)
 }
 
 func (this *reading) schemaName(name *types.TypeName) string {

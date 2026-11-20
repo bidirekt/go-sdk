@@ -3,13 +3,12 @@ package readme_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/bidirekt/go-sdk/internal/command"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -29,7 +28,9 @@ type example struct {
 func readme(t *testing.T) string {
 	t.Helper()
 	content, err := os.ReadFile(filepath.Join("..", "..", "README.md"))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	return string(content)
 }
 
@@ -40,7 +41,9 @@ func readmeToExamples(t *testing.T, text string) []example {
 	t.Helper()
 	start := strings.Index(text, firstExamples)
 	end := strings.Index(text, afterExamples)
-	require.True(t, start != -1 && end > start, "the README has its example sections")
+	if start == -1 || end <= start {
+		t.Fatalf("the README has its example sections: got false, want true")
+	}
 	lines := strings.Split(text[start+1:end], "\n")
 	var examples []example
 	current := example{files: map[string]string{}}
@@ -90,38 +93,54 @@ func readmeToExamples(t *testing.T, text string) []example {
 func newModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 	checkout, err := filepath.Abs(filepath.Join("..", ".."))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	dir, err := filepath.EvalSymlinks(t.TempDir())
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	files["go.mod"] = "module example.com/petstore\n\ngo 1.26.0\n\nrequire github.com/bidirekt/go-sdk v0.0.0\n\nreplace github.com/bidirekt/go-sdk => " + checkout + "\n"
 	for name, content := range files {
-		require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644))
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
+			t.Fatalf("got error %v, want none", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("got error %v, want none", err)
+		}
 	}
 	return dir
 }
 
 func TestGeneratesWhatTheReadmeShows(t *testing.T) {
 	examples := readmeToExamples(t, readme(t))
-	require.NotEmpty(t, examples, "examples")
+	if len(examples) == 0 {
+		t.Fatalf("examples: got none, want some")
+	}
 	for _, each := range examples {
 		t.Run(each.heading, func(t *testing.T) {
 			t.Parallel()
-			require.True(t, each.yaml != "" || each.stderr != "", "the example shows a result")
+			if each.yaml == "" && each.stderr == "" {
+				t.Fatalf("the example shows a result: got false, want true")
+			}
 			dir := newModule(t, each.files)
 
 			result := command.ArgsToResult([]string{"generate"}, dir)
 
-			assert.Equal(t, each.stderr, result.Stderr, "stderr")
+			equal(t, "stderr", result.Stderr, each.stderr)
 			generated, err := os.ReadFile(filepath.Join(dir, "contracts", "generated.yaml"))
 			if each.yaml == "" {
-				assert.Equal(t, 1, result.ExitCode, "exit code")
-				assert.True(t, os.IsNotExist(err), "nothing is written")
+				equal(t, "exit code", result.ExitCode, 1)
+				if !os.IsNotExist(err) {
+					t.Errorf("nothing is written: got false, want true")
+				}
 				return
 			}
-			require.NoError(t, err)
-			assert.Equal(t, 0, result.ExitCode, "exit code")
-			assert.Equal(t, each.yaml, string(generated), "output")
+			if err != nil {
+				t.Fatalf("got error %v, want none", err)
+			}
+			equal(t, "exit code", result.ExitCode, 0)
+			equal(t, "output", string(generated), each.yaml)
 		})
 	}
 }
@@ -136,13 +155,31 @@ var _ = bidirekt.Provides("GET", "/health", bidirekt.Response(204, nil))
 `})
 
 	missing := command.ArgsToResult([]string{"generate", "--check"}, dir)
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "contracts"), 0o755))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "contracts", "generated.yaml"), []byte("# stale\n"), 0o644))
+	if err := os.MkdirAll(filepath.Join(dir, "contracts"), 0o755); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "contracts", "generated.yaml"), []byte("# stale\n"), 0o644); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	stale := command.ArgsToResult([]string{"generate", "--check"}, dir)
 
 	for _, result := range []command.Result{missing, stale} {
-		assert.Equal(t, 1, result.ExitCode, "exit code")
+		equal(t, "exit code", result.ExitCode, 1)
 		message := "`" + strings.TrimSuffix(result.Stderr, "\n") + "`"
-		assert.True(t, strings.Contains(text, message), "the README shows %s", message)
+		if !strings.Contains(text, message) {
+			t.Errorf("the README shows %s: got false, want true", message)
+		}
 	}
+}
+
+func equal(t *testing.T, label string, got, want any) {
+	t.Helper()
+	if reflect.DeepEqual(got, want) {
+		return
+	}
+	if gotText, isText := got.(string); isText {
+		t.Errorf("%s:\ngot:\n%s\nwant:\n%s", label, gotText, want)
+		return
+	}
+	t.Errorf("%s:\ngot:  %#v\nwant: %#v", label, got, want)
 }

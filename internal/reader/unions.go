@@ -15,18 +15,22 @@ type unionField struct {
 	pkg      *types.Package
 }
 
-func reachesInterface(written types.Type) bool {
+func reachesInterface(written types.Type, visited map[types.Type]bool) bool {
+	if visited[written] {
+		return false
+	}
+	visited[written] = true
 	switch shape := written.Underlying().(type) {
 	case *types.Interface:
 		return true
 	case *types.Pointer:
-		return reachesInterface(shape.Elem())
+		return reachesInterface(shape.Elem(), visited)
 	case *types.Slice:
-		return reachesInterface(shape.Elem())
+		return reachesInterface(shape.Elem(), visited)
 	case *types.Array:
-		return reachesInterface(shape.Elem())
+		return reachesInterface(shape.Elem(), visited)
 	case *types.Map:
-		return reachesInterface(shape.Elem())
+		return reachesInterface(shape.Elem(), visited)
 	}
 	return false
 }

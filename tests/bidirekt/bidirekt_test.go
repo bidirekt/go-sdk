@@ -3,12 +3,11 @@ package bidirekt_test
 import (
 	"net/http"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/bidirekt/go-sdk"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type PetStatus string
@@ -82,14 +81,28 @@ func TestDeclarationsCompileAsPackageVariables(t *testing.T) {
 	schema := bidirekt.Schema(Owner{}, bidirekt.Named("PetOwner"))
 	enum := bidirekt.Enum(PetStatusAvailable)
 
-	assert.Equal(t, bidirekt.Resource{}, resource, "Provides does nothing at runtime")
-	assert.Equal(t, bidirekt.SchemaDeclaration{}, schema, "Schema does nothing at runtime")
-	assert.Equal(t, bidirekt.EnumDeclaration{}, enum, "Enum does nothing at runtime")
+	equal(t, "Provides does nothing at runtime", resource, bidirekt.Resource{})
+	equal(t, "Schema does nothing at runtime", schema, bidirekt.SchemaDeclaration{})
+	equal(t, "Enum does nothing at runtime", enum, bidirekt.EnumDeclaration{})
 }
 
 func TestPackageImportsNothing(t *testing.T) {
 	output, err := exec.Command("go", "list", "-deps", "github.com/bidirekt/go-sdk").Output()
-	require.NoError(t, err, "go list")
+	if err != nil {
+		t.Fatalf("go list: got error %v, want none", err)
+	}
 
-	assert.Equal(t, []string{"github.com/bidirekt/go-sdk"}, strings.Fields(string(output)), "dependencies of the bidirekt package")
+	equal(t, "dependencies of the bidirekt package", strings.Fields(string(output)), []string{"github.com/bidirekt/go-sdk"})
+}
+
+func equal(t *testing.T, label string, got, want any) {
+	t.Helper()
+	if reflect.DeepEqual(got, want) {
+		return
+	}
+	if gotText, isText := got.(string); isText {
+		t.Errorf("%s:\ngot:\n%s\nwant:\n%s", label, gotText, want)
+		return
+	}
+	t.Errorf("%s:\ngot:  %#v\nwant: %#v", label, got, want)
 }

@@ -1,0 +1,1 @@
+pets/pet.go:17 the union= lists "Shelter", which does not implement "Adopter": add the methods of "Adopter" to "Shelter" or to its pointer

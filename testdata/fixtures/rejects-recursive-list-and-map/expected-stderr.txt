@@ -1,0 +1,5 @@
+pets.go:15 cannot translate recursive type "Tree": only a struct can contain itself, so declare a struct with its fields marked with bidirekt:"field" and use it instead
+pets.go:16 cannot translate recursive type "Categories": only a struct can contain itself, so declare a struct with its fields marked with bidirekt:"field" and use it instead
+pets.go:17 cannot translate recursive type "Lineage": only a struct can contain itself, so declare a struct with its fields marked with bidirekt:"field" and use it instead
+pets.go:18 cannot place the union= in "Tree": write it on a field whose type, items or values are an interface
+pets.go:22 cannot translate recursive type "Tree": only a struct can contain itself, so declare a struct with its fields marked with bidirekt:"field" and use it instead

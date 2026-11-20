@@ -16,7 +16,8 @@ This changes your `go.mod`:
 
 - a `tool github.com/bidirekt/go-sdk/cmd/go-sdk` line, and `github.com/bidirekt/go-sdk` in `require`;
 - `golang.org/x/tools`, `golang.org/x/mod` and `golang.org/x/sync` as `// indirect`, which the generator uses to read your code. They never enter your app's binary: only the `bidirekt` package does, and it imports nothing;
-- the `go` line goes up to `1.26.0` if it is older, and Go's minimal version selection may move a dependency your app already uses, such as `golang.org/x/sync`, up to the version the generator needs.
+- the `go` line goes up to `1.26.0` if it is older, and Go's minimal version selection may move a dependency your app already uses, such as `golang.org/x/sync`, up to the version the generator needs;
+- the `go` line also sets the runtime defaults (`GODEBUG`) built into your app, so after the bump its next build behaves like a Go 1.26 app: for example, `GOMAXPROCS` follows the container's CPU limit, and TLS 1.2 rejects SHA-1 signatures. To keep the old defaults, add a `godebug default=go1.XX` line to `go.mod` with the `go` version you had before, such as `godebug default=go1.24`.
 
 The `bidirekt` package your code imports holds the declarations of the contract. They do nothing at runtime: each returns an empty value, and `generate` reads the source instead of running it.
 
@@ -479,7 +480,7 @@ A field of an interface type with `union={card: Card, pix: Pix}` is a `union` wh
 
 ### Embedded structs
 
-A struct embedded without a name in its `json` tag needs no mark: its marked fields come into the struct at its place, also by pointer and when the embedded type is not exported, as `encoding/json` does. When two fields write the same name, the shallower wins, then the one with a `json` tag; when `encoding/json` would write neither, `generate` stops. A struct embedded with a name in its `json` tag is a field like any other. Two fields with the same name in the contract stop `generate`.
+A struct embedded without a name in its `json` tag needs no mark: its marked fields come into the struct at its place, also by pointer and when the embedded type is not exported, as `encoding/json` does. Through a pointer they are `optional`, since `encoding/json` leaves them out when the pointer is nil. When two fields write the same name, the shallower wins, then the one with a `json` tag; when `encoding/json` would write neither, `generate` stops. A struct embedded with a name in its `json` tag is a field like any other. Two fields with the same name in the contract stop `generate`.
 
 ### Describe what the code does
 

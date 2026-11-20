@@ -224,18 +224,11 @@ func unicodeEscapeToYaml(code string) string {
 		"0007": `\a`,
 		"000b": `\v`,
 		"001b": `\e`,
-		"0085": `\N`,
-		"00a0": `\_`,
-		"2028": `\L`,
-		"2029": `\P`,
 	}
 	if escape, found := escapes[code]; found {
 		return escape
 	}
-	if strings.HasPrefix(code, "00") {
-		return `\x` + code[2:]
-	}
-	return `\u` + code
+	return `\x` + code[2:]
 }
 
 func charAt(value string, index int) byte {

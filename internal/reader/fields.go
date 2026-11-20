@@ -22,10 +22,11 @@ type directField struct {
 }
 
 type jsonField struct {
-	name   string
-	tagged bool
-	index  []int
-	field  *directField
+	name           string
+	tagged         bool
+	index          []int
+	field          *directField
+	throughPointer bool
 }
 
 type structFields struct {
@@ -34,8 +35,9 @@ type structFields struct {
 }
 
 type embeddedLevel struct {
-	fields *types.Struct
-	index  []int
+	fields         *types.Struct
+	index          []int
+	throughPointer bool
 }
 
 func (this *reading) structToDirectFields(fields *types.Struct) []*directField {
@@ -97,7 +99,8 @@ func (this *reading) varToDirectField(variable *types.Var, index int, raw string
 
 // structToFields follows encoding/json: the fields of embedded structs without a json name are promoted,
 // and of the fields with the same name the shallowest wins, then the one with a json name; when neither
-// wins, encoding/json writes none of them.
+// wins, encoding/json writes none of them. A field promoted through an embedded pointer is left out when
+// the pointer is nil.
 func (this *reading) structToFields(fields *types.Struct) structFields {
 	if found, cached := this.jsonFields[fields]; cached {
 		return found
@@ -127,7 +130,7 @@ func (this *reading) structToFields(fields *types.Struct) structFields {
 					if name == "" {
 						name = field.variable.Name()
 					}
-					all = append(all, jsonField{name: name, tagged: field.jsonName != "", index: index, field: field})
+					all = append(all, jsonField{name: name, tagged: field.jsonName != "", index: index, field: field, throughPointer: level.throughPointer})
 					if count[level.fields] > 1 {
 						all = append(all, all[len(all)-1])
 					}
@@ -138,7 +141,7 @@ func (this *reading) structToFields(fields *types.Struct) structFields {
 				}
 				nextCount[field.embedded]++
 				if nextCount[field.embedded] == 1 {
-					next = append(next, embeddedLevel{fields: field.embedded, index: index})
+					next = append(next, embeddedLevel{fields: field.embedded, index: index, throughPointer: level.throughPointer || isPointer(field.variable.Type())})
 				}
 			}
 		}

@@ -79,6 +79,99 @@ func (this *reading) namedToSchema(named *types.Named) *structSchema {
 	return schema
 }
 
+// A schema named only in a tag (type=, items=, values=, union=) is a named struct of the loaded packages or
+// of the packages they import, found by its name in the contract; a struct found this way may name more.
+func (this *reading) readTagReferences() {
+	var candidates map[string][]*types.Named
+	for found := true; found; {
+		found = false
+		known := this.contractSchemaNames()
+		for _, name := range this.referencedSchemaNames() {
+			if known[name] {
+				continue
+			}
+			if candidates == nil {
+				candidates = this.packagesToStructsByName()
+			}
+			for _, named := range candidates[name] {
+				if schema := this.namedToSchema(named); schema != nil {
+					schema.referenced = true
+					found = true
+				}
+			}
+			delete(candidates, name)
+		}
+	}
+}
+
+func (this *reading) packagesToStructsByName() map[string][]*types.Named {
+	byName := map[string][]*types.Named{}
+	visited := map[*types.Package]bool{}
+	var pending []*types.Package
+	for _, pkg := range this.loaded.packages {
+		if pkg.Types != nil {
+			pending = append(pending, pkg.Types)
+		}
+	}
+	for len(pending) > 0 {
+		pkg := pending[0]
+		pending = pending[1:]
+		if visited[pkg] {
+			continue
+		}
+		visited[pkg] = true
+		pending = append(pending, pkg.Imports()...)
+		scope := pkg.Scope()
+		for _, name := range scope.Names() {
+			typeName, isTypeName := scope.Lookup(name).(*types.TypeName)
+			if !isTypeName || typeName.IsAlias() {
+				continue
+			}
+			named, isNamed := typeName.Type().(*types.Named)
+			if !isNamed || named.TypeParams().Len() > 0 {
+				continue
+			}
+			if _, isStruct := named.Underlying().(*types.Struct); isStruct {
+				byName[this.schemaName(typeName)] = append(byName[this.schemaName(typeName)], named)
+			}
+		}
+	}
+	return byName
+}
+
+func (this *reading) contractSchemaNames() map[string]bool {
+	names := map[string]bool{}
+	for _, schema := range this.schemas {
+		if schema != nil {
+			names[schema.schema.Name] = true
+		}
+	}
+	for _, name := range this.enumNames {
+		names[name] = true
+	}
+	for _, derived := range this.derivedSchemas {
+		names[derived.Name] = true
+	}
+	return names
+}
+
+func (this *reading) referencedSchemaNames() []string {
+	var nodes []model.NamedSchema
+	for _, schema := range this.schemas {
+		if schema != nil {
+			nodes = append(nodes, schema.schema)
+		}
+	}
+	var names []string
+	for _, schema := range append(nodes, this.derivedSchemas...) {
+		for _, reference := range model.NodeToReferences(schema.Node, schema.Location) {
+			names = append(names, reference.Schema)
+		}
+	}
+	slices.Sort(names)
+	return slices.Compact(names)
+}
+
 // owner is the schema's name, empty for an anonymous struct.
 func (this *reading) structToObject(fields *types.Struct, owner string) model.Node {
 	object := model.Object{}
@@ -93,7 +186,11 @@ func (this *reading) structToObject(fields *types.Struct, owner string) model.No
 			name = visible.name
 		}
 		names[name] = append(names[name], field.variable)
-		object.Properties = append(object.Properties, model.Property{Name: name, Node: this.fieldToNode(field), Location: this.locationAt(field.variable.Pos())})
+		node := this.fieldToNode(field)
+		if visible.throughPointer && field.tag.options.optional == nil {
+			node.Optional = true
+		}
+		object.Properties = append(object.Properties, model.Property{Name: name, Node: node, Location: this.locationAt(field.variable.Pos())})
 	}
 	where := "this anonymous struct"
 	if owner != "" {
@@ -131,8 +228,8 @@ func (this *reading) schemasToContract() {
 		}
 	}
 	for _, derived := range this.derivedSchemas {
-		for _, name := range nodeToReferences(derived.Node) {
-			pending = append(pending, byName[name]...)
+		for _, reference := range model.NodeToReferences(derived.Node, derived.Location) {
+			pending = append(pending, byName[reference.Schema]...)
 		}
 	}
 	for len(pending) > 0 {
@@ -142,8 +239,8 @@ func (this *reading) schemasToContract() {
 			continue
 		}
 		included[schema] = true
-		for _, name := range nodeToReferences(schema.schema.Node) {
-			pending = append(pending, byName[name]...)
+		for _, reference := range model.NodeToReferences(schema.schema.Node, schema.schema.Location) {
+			pending = append(pending, byName[reference.Schema]...)
 		}
 	}
 	for _, schema := range all {
@@ -152,30 +249,6 @@ func (this *reading) schemasToContract() {
 		}
 	}
 	this.result.Contract.Schemas = append(this.result.Contract.Schemas, this.derivedSchemas...)
-}
-
-func nodeToReferences(node model.Node) []string {
-	switch shape := node.Shape.(type) {
-	case model.Ref:
-		return []string{shape.Schema}
-	case model.Object:
-		var names []string
-		for _, property := range shape.Properties {
-			names = append(names, nodeToReferences(property.Node)...)
-		}
-		return names
-	case model.Array:
-		return nodeToReferences(shape.Items)
-	case model.Map:
-		return nodeToReferences(shape.Values)
-	case model.Union:
-		var names []string
-		for _, member := range shape.Members {
-			names = append(names, nodeToReferences(member.Node)...)
-		}
-		return names
-	}
-	return nil
 }
 
 func packageHasBidirektTag(pkg *packages.Package) bool {

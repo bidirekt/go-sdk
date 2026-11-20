@@ -7,12 +7,12 @@ import (
 	"strings"
 
 	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/go/types/typeutil"
 )
 
 type sdkCall struct {
 	function string
 	call     *ast.CallExpr
-	ident    *ast.Ident
 }
 
 func packageToCalls(pkg *packages.Package) []sdkCall {
@@ -24,8 +24,8 @@ func packageToCalls(pkg *packages.Package) []sdkCall {
 	for _, file := range files {
 		ast.Inspect(file, func(node ast.Node) bool {
 			if call, isCall := node.(*ast.CallExpr); isCall {
-				if function, ident, found := callToSDKFunction(pkg.TypesInfo, call); found {
-					calls = append(calls, sdkCall{function: function, call: call, ident: ident})
+				if function, found := callToSDKFunction(pkg.TypesInfo, call); found {
+					calls = append(calls, sdkCall{function: function, call: call})
 				}
 			}
 			return true
@@ -34,28 +34,12 @@ func packageToCalls(pkg *packages.Package) []sdkCall {
 	return calls
 }
 
-func callToSDKFunction(info *types.Info, call *ast.CallExpr) (string, *ast.Ident, bool) {
-	fun := ast.Unparen(call.Fun)
-	switch index := fun.(type) {
-	case *ast.IndexExpr:
-		fun = ast.Unparen(index.X)
-	case *ast.IndexListExpr:
-		fun = ast.Unparen(index.X)
+func callToSDKFunction(info *types.Info, call *ast.CallExpr) (string, bool) {
+	function := typeutil.StaticCallee(info, call)
+	if function == nil || function.Pkg() == nil || function.Pkg().Path() != sdkPath {
+		return "", false
 	}
-	var ident *ast.Ident
-	switch name := fun.(type) {
-	case *ast.SelectorExpr:
-		ident = name.Sel
-	case *ast.Ident:
-		ident = name
-	default:
-		return "", nil, false
-	}
-	function, isFunction := info.Uses[ident].(*types.Func)
-	if !isFunction || function.Pkg() == nil || function.Pkg().Path() != sdkPath {
-		return "", nil, false
-	}
-	return function.Name(), ident, true
+	return function.Name(), true
 }
 
 func callToSDKOption(info *types.Info, expr ast.Expr, functions ...string) (*ast.CallExpr, string, bool) {
@@ -63,7 +47,7 @@ func callToSDKOption(info *types.Info, expr ast.Expr, functions ...string) (*ast
 	if !isCall {
 		return nil, "", false
 	}
-	function, _, found := callToSDKFunction(info, call)
+	function, found := callToSDKFunction(info, call)
 	if !found || !slices.Contains(functions, function) {
 		return nil, "", false
 	}

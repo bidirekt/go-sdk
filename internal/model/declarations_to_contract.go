@@ -15,9 +15,9 @@ func DeclarationsToContract(declarations Contract) (Contract, []Diagnostic) {
 	return contract, errors
 }
 
-type reference struct {
-	schema   string
-	location SourceLocation
+type Reference struct {
+	Schema   string
+	Location SourceLocation
 }
 
 func contractToMissingReferences(contract Contract, declarations []NamedSchema) []Diagnostic {
@@ -25,7 +25,7 @@ func contractToMissingReferences(contract Contract, declarations []NamedSchema) 
 	for _, declaration := range declarations {
 		declared[declaration.Name] = true
 	}
-	var references []reference
+	var references []Reference
 	for _, resource := range append(slices.Clone(contract.Provides), contract.Consumes...) {
 		bodies := []Body{}
 		if resource.Request != nil {
@@ -36,43 +36,43 @@ func contractToMissingReferences(contract Contract, declarations []NamedSchema) 
 		}
 		for _, body := range bodies {
 			if body.Schema != "" {
-				references = append(references, reference{schema: body.Schema, location: body.Location})
+				references = append(references, Reference(body))
 			}
 		}
 	}
 	for _, schema := range contract.Schemas {
-		references = append(references, nodeToReferences(schema.Node, schema.Location)...)
+		references = append(references, NodeToReferences(schema.Node, schema.Location)...)
 	}
 	var errors []Diagnostic
 	for _, each := range references {
-		if !declared[each.schema] {
+		if !declared[each.Schema] {
 			errors = append(errors, Diagnostic{
-				Message:  fmt.Sprintf("schema %q is not declared: reference a schema by its name in the contract", each.schema),
-				Location: each.location,
+				Message:  fmt.Sprintf("schema %q is not declared: reference a schema by its name in the contract", each.Schema),
+				Location: each.Location,
 			})
 		}
 	}
 	return errors
 }
 
-func nodeToReferences(node Node, location SourceLocation) []reference {
+func NodeToReferences(node Node, location SourceLocation) []Reference {
 	switch shape := node.Shape.(type) {
 	case Ref:
-		return []reference{{schema: shape.Schema, location: location}}
+		return []Reference{{Schema: shape.Schema, Location: location}}
 	case Object:
-		var references []reference
+		var references []Reference
 		for _, property := range shape.Properties {
-			references = append(references, nodeToReferences(property.Node, property.Location)...)
+			references = append(references, NodeToReferences(property.Node, property.Location)...)
 		}
 		return references
 	case Array:
-		return nodeToReferences(shape.Items, location)
+		return NodeToReferences(shape.Items, location)
 	case Map:
-		return nodeToReferences(shape.Values, location)
+		return NodeToReferences(shape.Values, location)
 	case Union:
-		var references []reference
+		var references []Reference
 		for _, member := range shape.Members {
-			references = append(references, nodeToReferences(member.Node, location)...)
+			references = append(references, NodeToReferences(member.Node, location)...)
 		}
 		return references
 	}

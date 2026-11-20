@@ -4,10 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const pets = `package petstore
@@ -50,21 +48,43 @@ func run(t *testing.T, dir string, args ...string) {
 	command.Dir = dir
 	command.Env = append(os.Environ(), "GOWORK=off")
 	output, err := command.CombinedOutput()
-	require.NoError(t, err, "go %v:\n%s", args, output)
+	if err != nil {
+		t.Fatalf("go %v: got error %v, want none\n%s", args, err, output)
+	}
 }
 
 func TestInstallsTheGeneratorAsAGoToolAndRunsIt(t *testing.T) {
 	checkout, err := filepath.Abs(filepath.Join("..", ".."))
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 	dir := t.TempDir()
 	goMod := "module example.com/petstore\n\ngo 1.26.0\n\nreplace github.com/bidirekt/go-sdk => " + checkout + "\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "pets.go"), []byte(pets), 0o644))
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pets.go"), []byte(pets), 0o644); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
 
 	run(t, dir, "get", "-tool", "github.com/bidirekt/go-sdk/cmd/go-sdk")
 	run(t, dir, "tool", "go-sdk", "generate")
 
 	generated, err := os.ReadFile(filepath.Join(dir, "contracts", "generated.yaml"))
-	require.NoError(t, err)
-	assert.Equal(t, expectedYaml, string(generated))
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
+	equal(t, "output", string(generated), expectedYaml)
+}
+
+func equal(t *testing.T, label string, got, want any) {
+	t.Helper()
+	if reflect.DeepEqual(got, want) {
+		return
+	}
+	if gotText, isText := got.(string); isText {
+		t.Errorf("%s:\ngot:\n%s\nwant:\n%s", label, gotText, want)
+		return
+	}
+	t.Errorf("%s:\ngot:  %#v\nwant: %#v", label, got, want)
 }

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/bidirekt/go-sdk/internal/writer"
-	"github.com/stretchr/testify/assert"
 )
 
 const scalarIndent = "    "
@@ -83,7 +82,9 @@ func TestWritesAValueAsTheYamlLibraryDoes(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			assert.Equal(t, c.expected, writer.StringToYaml(c.value, scalarIndent, false))
+			if got := writer.StringToYaml(c.value, scalarIndent, false); got != c.expected {
+				t.Errorf("value %q: got %q, want %q", c.value, got, c.expected)
+			}
 		})
 	}
 }
@@ -109,11 +110,15 @@ func TestWritesAKeyAsTheYamlLibraryDoes(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			assert.Equal(t, c.expected, writer.StringToYaml(c.key, scalarIndent, true))
+			if got := writer.StringToYaml(c.key, scalarIndent, true); got != c.expected {
+				t.Errorf("key %q: got %q, want %q", c.key, got, c.expected)
+			}
 		})
 	}
 }
 
 func TestCountsLengthInUTF16CodeUnits(t *testing.T) {
-	assert.Equal(t, 4, writer.StringToUTF16Length("a\u00e9\U0001f600"))
+	if got := writer.StringToUTF16Length("a\u00e9\U0001f600"); got != 4 {
+		t.Errorf("UTF-16 length: got %d, want 4", got)
+	}
 }

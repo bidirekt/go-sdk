@@ -5,7 +5,6 @@ import (
 
 	"github.com/bidirekt/go-sdk/internal/command"
 	"github.com/bidirekt/go-sdk/internal/model"
-	"github.com/stretchr/testify/assert"
 )
 
 const cwd = "/home/dev/petstore"
@@ -22,19 +21,23 @@ func TestSortsErrorsAndWarningsTogetherByFileAndLineWithoutRepeats(t *testing.T)
 
 	text := command.DiagnosticsToText(errors, warnings, cwd)
 
-	assert.Equal(t, `api/routes.go:30 error in another file
+	want := `api/routes.go:30 error in another file
 pets.go:3 warning: a near miss
 pets.go:9 second error
-`, text)
+`
+	if text != want {
+		t.Errorf("text:\ngot:\n%s\nwant:\n%s", text, want)
+	}
 }
 
-func TestShowsADiagnosticWithoutLineOrPlace(t *testing.T) {
+func TestShowsADiagnosticWithoutPlace(t *testing.T) {
 	errors := []model.Diagnostic{
 		{Message: "go: errors parsing go.mod"},
-		{Message: "a whole file", Location: model.SourceLocation{File: "/home/dev/shared/status.go"}},
 	}
 
 	text := command.DiagnosticsToText(errors, nil, cwd)
 
-	assert.Equal(t, "go: errors parsing go.mod\n../shared/status.go a whole file\n", text)
+	if want := "go: errors parsing go.mod\n"; text != want {
+		t.Errorf("text:\ngot:\n%s\nwant:\n%s", text, want)
+	}
 }

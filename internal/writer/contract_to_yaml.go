@@ -76,45 +76,29 @@ func providedToYaml(resources []model.Resource) *yamlMap {
 
 func consumedToYaml(resources []model.Resource) *yamlMap {
 	providers := &yamlMap{}
-	for _, group := range groupedByKey(resources, func(resource model.Resource) string { return resource.Provider }) {
-		providers.add(nameKey(group.key), providedToYaml(group.resources))
+	for _, group := range resourcesToSortedGroups(resources, func(resource model.Resource) string { return resource.Provider }) {
+		providers.add(nameKey(group[0].Provider), providedToYaml(group))
 	}
 	return providers
 }
 
-type resourceGroup struct {
-	key       string
-	resources []model.Resource
-}
-
-func groupedByKey(resources []model.Resource, keyOf func(model.Resource) string) []resourceGroup {
-	var groups []resourceGroup
-	indexByKey := map[string]int{}
-	for _, resource := range resources {
-		key := keyOf(resource)
-		index, found := indexByKey[key]
-		if !found {
-			index = len(groups)
-			indexByKey[key] = index
-			groups = append(groups, resourceGroup{key: key})
-		}
-		groups[index].resources = append(groups[index].resources, resource)
-	}
-	slices.SortFunc(groups, func(a, b resourceGroup) int { return strings.Compare(a.key, b.key) })
+func resourcesToSortedGroups(resources []model.Resource, resourceToKey func(model.Resource) string) [][]model.Resource {
+	groups := model.ResourcesToGroups(resources, resourceToKey)
+	slices.SortFunc(groups, func(a, b []model.Resource) int { return strings.Compare(resourceToKey(a[0]), resourceToKey(b[0])) })
 	return groups
 }
 
 func resourcesToYaml(resources []model.Resource) *yamlMap {
 	endpoints := &yamlMap{}
-	for _, group := range groupedByKey(resources, func(resource model.Resource) string { return resource.Path }) {
-		atPath := slices.SortedStableFunc(slices.Values(group.resources), func(a, b model.Resource) int {
+	for _, group := range resourcesToSortedGroups(resources, func(resource model.Resource) string { return resource.Path }) {
+		atPath := slices.SortedStableFunc(slices.Values(group), func(a, b model.Resource) int {
 			return strings.Compare(strings.ToLower(a.Method), strings.ToLower(b.Method))
 		})
 		methods := &yamlMap{}
 		for _, resource := range atPath {
 			methods.add(nameKey(strings.ToLower(resource.Method)), resourceToYaml(resource))
 		}
-		endpoints.add(nameKey(group.key), methods)
+		endpoints.add(nameKey(group[0].Path), methods)
 	}
 	return endpoints
 }

@@ -10,8 +10,9 @@ import (
 )
 
 type schemaDeclaration struct {
-	typeName *types.TypeName
-	call     *ast.CallExpr
+	typeName  *types.TypeName
+	call      *ast.CallExpr
+	inProject bool
 }
 
 func (this *reading) readSchemaDeclaration(pkg *packages.Package, declaration sdkCall) {
@@ -40,10 +41,11 @@ func (this *reading) readSchemaDeclaration(pkg *packages.Package, declaration sd
 		}
 	}
 	this.schemaNames[typeName] = name
-	this.schemaDeclarations = append(this.schemaDeclarations, schemaDeclaration{typeName: typeName, call: declaration.call})
+	this.schemaDeclarations = append(this.schemaDeclarations, schemaDeclaration{typeName: typeName, call: declaration.call, inProject: this.loaded.inProject[pkg.PkgPath]})
 }
 
-// A bidirekt.Schema names a struct with marked fields, a named list or map, or a type of bidirekt.Enum.
+// A bidirekt.Schema names a struct with marked fields, a named list or map used as a body, or a type of
+// bidirekt.Enum. Outside the project, a list or map may be a body only of another service.
 func (this *reading) readSchemaDeclarationTypes() {
 	for _, declaration := range this.schemaDeclarations {
 		typed := declaration.typeName.Type().(*types.Named)
@@ -52,7 +54,9 @@ func (this *reading) readSchemaDeclarationTypes() {
 		}
 		switch typed.Underlying().(type) {
 		case *types.Slice, *types.Array, *types.Map:
-			continue
+			if this.schemas[declaration.typeName] != nil || !declaration.inProject {
+				continue
+			}
 		case *types.Struct:
 			if typed.TypeParams().Len() == 0 && this.namedToSchema(typed) != nil {
 				continue
@@ -71,7 +75,8 @@ func (this *reading) readEnum(pkg *packages.Package, declaration sdkCall) {
 		this.addError(declaration.call, "values of bidirekt.Enum must be written in place, one by one: write them without ...")
 		return
 	}
-	valueType := pkg.TypesInfo.Instances[declaration.ident].TypeArgs.At(0)
+	signature := pkg.TypesInfo.TypeOf(declaration.call.Fun).(*types.Signature)
+	valueType := signature.Params().At(0).Type().(*types.Slice).Elem()
 	named, isNamed := types.Unalias(valueType).(*types.Named)
 	if !isNamed {
 		this.addError(declaration.call, "values of bidirekt.Enum have no named type: declare a string type, as type PetStatus string, and give the values that type")

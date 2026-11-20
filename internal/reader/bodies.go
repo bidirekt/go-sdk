@@ -82,6 +82,10 @@ func (this *reading) namedToBodySchema(written types.Type, place bodyPlace) (str
 }
 
 func (this *reading) collectionToBodySchema(named *types.Named, place bodyPlace) (string, bool) {
+	if named.TypeArgs().Len() > 0 {
+		this.addError(place.expr, "cannot translate generic type %q: declare a slice or map type without type parameters, as type Pets []Pet, and use it as the body", typeToText(named, place.typed.pkg))
+		return "", false
+	}
 	typeName := named.Obj()
 	if place.named {
 		this.addError(place.expr, "the body is the schema %q, whose name bidirekt.Named cannot change: rename it with bidirekt.Schema(..., bidirekt.Named(%q))", this.schemaName(typeName), place.name)

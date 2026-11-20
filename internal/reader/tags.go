@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/bidirekt/go-sdk/internal/model"
@@ -99,6 +100,9 @@ func rawToKeys(raw string) ([]string, bool) {
 			closing++
 		}
 		if closing >= len(raw) {
+			return keys, false
+		}
+		if _, err := strconv.Unquote(raw[:closing+1]); err != nil {
 			return keys, false
 		}
 		raw = raw[closing+1:]

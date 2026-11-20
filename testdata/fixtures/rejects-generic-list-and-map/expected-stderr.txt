@@ -1,0 +1,3 @@
+pets.go:20 cannot translate generic type "List[Pet]": declare a slice or map type without type parameters, as type Pets []Pet, and use it as the body
+pets.go:24 cannot translate generic type "List[Owner]": declare a slice or map type without type parameters, as type Pets []Pet, and use it as the body
+pets.go:28 cannot translate generic type "Index[Owner]": declare a slice or map type without type parameters, as type Pets []Pet, and use it as the body

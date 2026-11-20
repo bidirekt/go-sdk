@@ -1,10 +1,10 @@
 package model_test
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/bidirekt/go-sdk/internal/model"
-	"github.com/stretchr/testify/assert"
 )
 
 var (
@@ -25,10 +25,12 @@ func TestJoinsTheStatusesOfAResourceConsumedInTwoDeclarations(t *testing.T) {
 
 	contract, errors := model.DeclarationsToContract(declarations)
 
-	assert.Empty(t, errors, "errors")
-	assert.Equal(t, []model.Resource{
+	if len(errors) != 0 {
+		t.Errorf("errors: got %#v, want none", errors)
+	}
+	equal(t, "consumes", contract.Consumes, []model.Resource{
 		{Provider: "payments_api", Method: "GET", Path: "/charges/*", Responses: []model.Response{{Status: 200}, {Status: 404}}, Location: first},
-	}, contract.Consumes)
+	})
 }
 
 func TestWritesTheSameDerivedListOnceAndRejectsDifferentOnes(t *testing.T) {
@@ -37,10 +39,12 @@ func TestWritesTheSameDerivedListOnceAndRejectsDifferentOnes(t *testing.T) {
 	same, sameErrors := model.DeclarationsToContract(model.Contract{Schemas: []model.NamedSchema{pet, petList(first, false), petList(second, false)}})
 	_, differentErrors := model.DeclarationsToContract(model.Contract{Schemas: []model.NamedSchema{pet, petList(first, false), petList(second, true)}})
 
-	assert.Empty(t, sameErrors, "errors of the same list")
-	assert.Equal(t, []model.NamedSchema{pet, petList(first, false)}, same.Schemas, "the same list written once")
+	if len(sameErrors) != 0 {
+		t.Errorf("errors of the same list: got %#v, want none", sameErrors)
+	}
+	equal(t, "the same list written once", same.Schemas, []model.NamedSchema{pet, petList(first, false)})
 	message := `lists named "PetList" differ: give each list a distinct name`
-	assert.Equal(t, []model.Diagnostic{{Message: message, Location: first}, {Message: message, Location: second}}, differentErrors, "errors of different lists")
+	equal(t, "errors of different lists", differentErrors, []model.Diagnostic{{Message: message, Location: first}, {Message: message, Location: second}})
 }
 
 func TestRejectsAReferenceToASchemaNotDeclared(t *testing.T) {
@@ -54,8 +58,20 @@ func TestRejectsAReferenceToASchemaNotDeclared(t *testing.T) {
 
 	_, errors := model.DeclarationsToContract(declarations)
 
-	assert.Equal(t, []model.Diagnostic{{
+	equal(t, "errors", errors, []model.Diagnostic{{
 		Message:  `schema "Person" is not declared: reference a schema by its name in the contract`,
 		Location: second,
-	}}, errors)
+	}})
+}
+
+func equal(t *testing.T, label string, got, want any) {
+	t.Helper()
+	if reflect.DeepEqual(got, want) {
+		return
+	}
+	if gotText, isText := got.(string); isText {
+		t.Errorf("%s:\ngot:\n%s\nwant:\n%s", label, gotText, want)
+		return
+	}
+	t.Errorf("%s:\ngot:  %#v\nwant: %#v", label, got, want)
 }

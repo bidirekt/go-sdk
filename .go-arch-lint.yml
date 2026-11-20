@@ -7,8 +7,6 @@ exclude:
 vendors:
   tools:
     in: golang.org/x/tools/**
-  testify:
-    in: github.com/stretchr/testify/**
 components:
   bidirekt:
     in: .
@@ -43,5 +41,3 @@ deps:
       - model
   tests:
     anyProjectDeps: true
-    canUse:
-      - testify

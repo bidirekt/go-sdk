@@ -42,11 +42,7 @@ func diagnosticToLine(diagnostic model.Diagnostic, prefix, cwd string) string {
 	if diagnostic.Location.File == "" {
 		return prefix + diagnostic.Message + "\n"
 	}
-	place := pathToShown(diagnostic.Location.File, cwd)
-	if diagnostic.Location.Line > 0 {
-		place += ":" + strconv.Itoa(diagnostic.Location.Line)
-	}
-	return place + " " + prefix + diagnostic.Message + "\n"
+	return pathToShown(diagnostic.Location.File, cwd) + ":" + strconv.Itoa(diagnostic.Location.Line) + " " + prefix + diagnostic.Message + "\n"
 }
 
 func pathToShown(path, cwd string) string {

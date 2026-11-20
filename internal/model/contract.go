@@ -1,6 +1,6 @@
 package model
 
-// A location without File has no place; one with a Line of 0 is the whole file.
+// A location without File has no place.
 type SourceLocation struct {
 	File string
 	Line int

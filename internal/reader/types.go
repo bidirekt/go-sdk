@@ -27,7 +27,7 @@ func (this *reading) fieldToNode(field *directField) model.Node {
 		node.Nullable = isPointer(written)
 	case field.quoted:
 		node = model.Node{Shape: model.Primitive{Type: "string"}, Nullable: isPointer(written)}
-	case options.union != nil && !reachesInterface(written):
+	case options.union != nil && !reachesInterface(written, map[types.Type]bool{}):
 		this.addErrorAt(field.variable.Pos(), "cannot place the union= in %q: write it on a field whose type, items or values are an interface", typeToText(written, field.variable.Pkg()))
 	default:
 		node, _ = this.typeToNode(written, typePlace{position: field.variable.Pos(), pkg: field.variable.Pkg(), union: options.union})
@@ -49,6 +49,19 @@ func (this *reading) fieldToNode(field *directField) model.Node {
 
 func (this *reading) typeToNode(original types.Type, place typePlace) (model.Node, bool) {
 	written := types.Unalias(original)
+	// A struct is a ref to its schema; any other named type is written in place, so one that contains
+	// itself would never end.
+	if named, isNamed := written.(*types.Named); isNamed {
+		if _, isStruct := named.Underlying().(*types.Struct); !isStruct {
+			typeName := named.Origin().Obj()
+			if this.inProgress[typeName] {
+				this.addErrorAt(place.position, "cannot translate recursive type %q: only a struct can contain itself, so declare a struct with its fields marked with bidirekt:\"field\" and use it instead", typeToText(original, place.pkg))
+				return model.Node{}, false
+			}
+			this.inProgress[typeName] = true
+			defer delete(this.inProgress, typeName)
+		}
+	}
 	if pointer, isPointer := written.Underlying().(*types.Pointer); isPointer {
 		node, readable := this.typeToNode(pointer.Elem(), place)
 		node.Nullable = true
@@ -69,7 +82,7 @@ func (this *reading) typeToNode(original types.Type, place typePlace) (model.Nod
 	case *types.Basic:
 		return this.basicToNode(original, shape, place)
 	case *types.Slice:
-		if basic, isBasic := shape.Elem().Underlying().(*types.Basic); isBasic && basic.Kind() == types.Byte {
+		if isBytes(shape) {
 			return this.untranslatable(original, place)
 		}
 		items, readable := this.typeToNode(shape.Elem(), place)
