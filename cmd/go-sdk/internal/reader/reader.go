@@ -89,8 +89,9 @@ func (this *reading) read() {
 	this.readCalls(project, this.readResource, "Provides", "Consumes")
 	this.readSchemaDeclarationTypes()
 	this.readTagReferences()
-	this.readUnionMembers()
-	this.schemasToContract()
+	contractTypeNames := this.schemasToContractTypeNames()
+	this.readUnionMembers(contractTypeNames)
+	this.typeNamesToContract(contractTypeNames)
 }
 
 func (this *reading) readCalls(declaring []packageCalls, read func(*packages.Package, sdkCall), functions ...string) {

@@ -213,23 +213,24 @@ func (this *reading) structToObject(fields *types.Struct, owner string) model.No
 // The schemas of the contract: those that stand in it on their own (used by a type, derived from a body,
 // or of the project and not only embedded), and for a name that only a tag writes, every schema of that
 // name.
-func (this *reading) schemasToContract() {
-	byName := map[string][]*structSchema{}
+func (this *reading) schemasToContractTypeNames() []*types.TypeName {
+	byName := map[string][]*types.TypeName{}
 	standing := map[string]bool{}
-	var all, pending []*structSchema
+	var all, pending []*types.TypeName
 	for typeName, schema := range this.schemas {
 		if schema == nil {
 			continue
 		}
-		all = append(all, schema)
-		byName[schema.schema.Name] = append(byName[schema.schema.Name], schema)
+		all = append(all, typeName)
+		byName[schema.schema.Name] = append(byName[schema.schema.Name], typeName)
 		if schema.referenced || (schema.declared && !this.embeddedNames[typeName]) {
 			standing[schema.schema.Name] = true
-			pending = append(pending, schema)
+			pending = append(pending, typeName)
 		}
 	}
-	slices.SortFunc(all, func(a, b *structSchema) int {
-		return cmp.Or(strings.Compare(a.schema.Location.File, b.schema.Location.File), cmp.Compare(a.schema.Location.Line, b.schema.Location.Line))
+	slices.SortFunc(all, func(a, b *types.TypeName) int {
+		first, second := this.schemas[a].schema.Location, this.schemas[b].schema.Location
+		return cmp.Or(strings.Compare(first.File, second.File), cmp.Compare(first.Line, second.Line))
 	})
 	followTagOnlyNames := func(node model.NamedSchema) {
 		for _, reference := range model.NodeToReferences(node.Node, node.Location) {
@@ -241,20 +242,22 @@ func (this *reading) schemasToContract() {
 	for _, derived := range this.derivedSchemas {
 		followTagOnlyNames(derived)
 	}
-	included := map[*structSchema]bool{}
+	included := map[*types.TypeName]bool{}
 	for len(pending) > 0 {
-		schema := pending[len(pending)-1]
+		typeName := pending[len(pending)-1]
 		pending = pending[:len(pending)-1]
-		if included[schema] {
+		if included[typeName] {
 			continue
 		}
-		included[schema] = true
-		followTagOnlyNames(schema.schema)
+		included[typeName] = true
+		followTagOnlyNames(this.schemas[typeName].schema)
 	}
-	for _, schema := range all {
-		if included[schema] {
-			this.result.Contract.Schemas = append(this.result.Contract.Schemas, schema.schema)
-		}
+	return slices.DeleteFunc(all, func(typeName *types.TypeName) bool { return !included[typeName] })
+}
+
+func (this *reading) typeNamesToContract(typeNames []*types.TypeName) {
+	for _, typeName := range typeNames {
+		this.result.Contract.Schemas = append(this.result.Contract.Schemas, this.schemas[typeName].schema)
 	}
 	this.result.Contract.Schemas = append(this.result.Contract.Schemas, this.derivedSchemas...)
 }

@@ -543,6 +543,8 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md). From the repository root, turn on the `
 git config core.hooksPath .githooks
 ```
 
+To run only the tests, run `go test ./...` in the root and in `cmd/go-sdk`.
+
 `go test ./...` in `cmd/go-sdk` also runs `cmd/go-sdk/tests/readme`, which runs every example between `## Quickstart` and ``## The `generate` command`` through `generate`, in the module `example.com/petstore`, and compares the result with the YAML or the lines this README shows. An example is the fenced blocks right below a line with only the file's path in backticks, followed by a `yaml` block (`contracts/generated.yaml`) or a `text` block (stderr). The same test checks that the two `--check` messages above are the ones `generate` prints, and `cmd/go-sdk/tests/install` runs the commands of [Installation](#installation) in a new module.
 
 ## License

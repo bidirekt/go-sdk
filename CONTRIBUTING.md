@@ -16,25 +16,6 @@ Fork the repository, create a branch, and open a pull request against `main`. Th
 git config core.hooksPath .githooks
 ```
 
-To run the tests by hand, run `go test ./...` in each module:
-
-```sh
-go test ./...
-(cd cmd/go-sdk && go test ./...)
-```
-
-## Releases
-
-A release is two tags on the same commit: `vX.Y.Z` for the root module and `cmd/go-sdk/vX.Y.Z` for the generator, with the same version. Push both at once:
-
-```sh
-git tag vX.Y.Z
-git tag cmd/go-sdk/vX.Y.Z
-git push --atomic origin vX.Y.Z cmd/go-sdk/vX.Y.Z
-```
-
-The `Release` workflow runs on `vX.Y.Z`: it checks that `cmd/go-sdk/vX.Y.Z` points at the same commit, creates the GitHub Release, and requests both versions from proxy.golang.org so they show on pkg.go.dev.
-
 ## Security
 
 Report a vulnerability as [SECURITY.md](SECURITY.md) describes, never in an issue.
