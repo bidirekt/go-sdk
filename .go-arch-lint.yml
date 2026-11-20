@@ -1,0 +1,10 @@
+version: 3
+workdir: .
+allow:
+  depOnAnyVendor: false
+exclude:
+  - testdata
+components:
+  cmd:
+    in: cmd/**
+deps: {}
