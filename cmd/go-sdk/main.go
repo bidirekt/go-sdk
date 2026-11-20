@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bidirekt/go-sdk/internal/command"
+	"github.com/bidirekt/go-sdk/cmd/go-sdk/internal/command"
 )
 
 func main() {

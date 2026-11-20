@@ -2,7 +2,9 @@ package bidirekt_test
 
 import (
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -93,6 +95,53 @@ func TestPackageImportsNothing(t *testing.T) {
 	}
 
 	equal(t, "dependencies of the bidirekt package", strings.Fields(string(output)), []string{"github.com/bidirekt/go-sdk"})
+}
+
+const sharedStatus = `package shared
+
+import "github.com/bidirekt/go-sdk"
+
+type Status string
+
+const (
+	StatusOpen   Status = "open"
+	StatusClosed Status = "closed"
+)
+
+var _ = bidirekt.Enum(StatusOpen, StatusClosed)
+`
+
+func goIn(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	command := exec.Command("go", args...)
+	command.Dir = dir
+	command.Env = append(os.Environ(), "GOWORK=off")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go %v: got error %v, want none\n%s", args, err, output)
+	}
+	return string(output)
+}
+
+func TestAModuleThatOnlyImportsThePackageKeepsItsGoLineAndRequiresNothingElse(t *testing.T) {
+	checkout, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"go.mod":    "module example.com/shared\n\ngo 1.22\n\nreplace github.com/bidirekt/go-sdk => " + checkout + "\n",
+		"status.go": sharedStatus,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatalf("got error %v, want none", err)
+		}
+	}
+
+	goIn(t, dir, "mod", "tidy")
+
+	equal(t, "go line", strings.TrimSpace(goIn(t, dir, "list", "-m", "-f", "{{.GoVersion}}")), "1.22")
+	equal(t, "modules of the module graph", strings.Fields(goIn(t, dir, "list", "-m", "-f", "{{if not .Main}}{{.Path}}{{end}}", "all")), []string{"github.com/bidirekt/go-sdk"})
 }
 
 func equal(t *testing.T, label string, got, want any) {

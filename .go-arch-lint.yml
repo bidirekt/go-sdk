@@ -3,41 +3,13 @@ workdir: .
 allow:
   depOnAnyVendor: false
 exclude:
-  - testdata
-vendors:
-  tools:
-    in: golang.org/x/tools/**
+  - cmd
 components:
   bidirekt:
     in: .
-  cmd:
-    in: cmd/**
-  command:
-    in: internal/command
-  reader:
-    in: internal/reader
-  model:
-    in: internal/model
-  writer:
-    in: internal/writer
   tests:
     in: tests/**
 deps:
-  cmd:
-    mayDependOn:
-      - command
-  command:
-    mayDependOn:
-      - reader
-      - model
-      - writer
-  reader:
-    mayDependOn:
-      - model
-    canUse:
-      - tools
-  writer:
-    mayDependOn:
-      - model
   tests:
-    anyProjectDeps: true
+    mayDependOn:
+      - bidirekt

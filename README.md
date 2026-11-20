@@ -6,20 +6,31 @@ In Bidirekt, each side of an integration declares in a contract file what it pro
 
 ## Installation
 
-The SDK needs Go 1.26 or later. Add the generator to your module as a tool, then tidy the module:
+The SDK is two Go modules in this repository:
+
+- `github.com/bidirekt/go-sdk`, the `bidirekt` package your code imports to declare the contract. It imports nothing, requires no module and builds with Go 1.18 or later.
+- `github.com/bidirekt/go-sdk/cmd/go-sdk`, the `generate` command, which needs Go 1.26 or later. Your app installs it as a tool.
+
+In the module of your service, get the package and add the generator as a tool, then tidy the module:
 
 ```sh
+go get github.com/bidirekt/go-sdk
 go get -tool github.com/bidirekt/go-sdk/cmd/go-sdk
 go mod tidy
 ```
 
-This changes your `go.mod`:
+`go mod tidy` keeps `github.com/bidirekt/go-sdk` only when your code imports the package, so run it once your first declaration is written.
 
-- a `tool github.com/bidirekt/go-sdk/cmd/go-sdk` line, and `github.com/bidirekt/go-sdk` in `require`;
+A module that only imports the package, such as a shared module that holds the schemas and enums of several services, gets `github.com/bidirekt/go-sdk` in `require` and nothing else: its `go` line stays as it is. Only the module that installs the tool gets the changes below.
+
+Installing the tool changes your `go.mod`:
+
+- a `tool github.com/bidirekt/go-sdk/cmd/go-sdk` line, `github.com/bidirekt/go-sdk` in `require`, and `github.com/bidirekt/go-sdk/cmd/go-sdk` as `// indirect`;
 - `golang.org/x/tools`, `golang.org/x/mod` and `golang.org/x/sync` as `// indirect`, which the generator uses to read your code. They never enter your app's binary: only the `bidirekt` package does, and it imports nothing;
-- the `go` line goes up to `1.26.0` if it is older;
-- the `golang.org/x` modules your app already uses, such as `golang.org/x/net`, `golang.org/x/sys`, `golang.org/x/text`, `golang.org/x/crypto` or `golang.org/x/sync`, move up to the versions `golang.org/x/tools` needs, as Go's minimal version selection does. `go mod tidy` then adds their new versions to `go.sum`; without it, `go build` can stop with `missing go.sum entry`;
-- the `go` line also sets the runtime defaults (`GODEBUG`) built into your app, so after the bump its next build behaves like a Go 1.26 app: for example, `GOMAXPROCS` follows the container's CPU limit, and TLS 1.2 rejects SHA-1 signatures. To keep the old defaults, add a `godebug default=go1.XX` line to `go.mod` with the `go` version you had before, such as `godebug default=go1.24`.
+- the `go` line goes up to `1.26.0` if it is older, and a `toolchain` line older than `go1.26.0` is removed (`go: removed toolchain go1.24.5`). A CI that installs Go from `go.mod`, such as `actions/setup-go` with `go-version-file`, then gets exactly Go 1.26.0: add back a `toolchain go1.26.N` line with the latest patch;
+- the `golang.org/x` modules your app already uses, such as `golang.org/x/net`, `golang.org/x/sys`, `golang.org/x/text`, `golang.org/x/crypto` or `golang.org/x/sync`, move up to the versions `golang.org/x/tools` needs, as Go's minimal version selection does, and so can modules outside `golang.org/x` that it requires, such as `github.com/google/go-cmp`. `go mod tidy` then adds their new versions to `go.sum`; without it, `go build` can stop with `missing go.sum entry`;
+- your app's other tools built from `golang.org/x/tools`, such as `stringer` or `goimports`, move to the `golang.org/x/tools` version the generator needs, and what they write can change;
+- the `go` line also sets the runtime defaults (`GODEBUG`) built into your app, so after the bump its next build behaves like a Go 1.26 app: for example, `GOMAXPROCS` follows the container's CPU limit, and TLS 1.2 rejects SHA-1 signatures. To keep the old defaults, add a `godebug default=go1.XX` line to `go.mod` with the `go` version you had before, such as `godebug default=go1.24`. It restores the runtime defaults only, not the language: an app coming from Go 1.21 or older gets a new loop variable on each iteration of a `for` loop all the same.
 
 The `bidirekt` package your code imports holds the declarations of the contract. They do nothing at runtime: each returns an empty value, and `generate` reads the source instead of running it.
 
@@ -382,7 +393,7 @@ bidirekt record-deployment petstore_go --version 1.4.0 --environment production
 
 `validate` without `--participant` and `--environment` checks only the file; with them, it also compares the file with what is deployed in that environment.
 
-`generate` reads the source with the Go toolchain's package loader and never builds nor runs your app. Test files (`_test.go`) are never read, and a file outside your machine's build tags neither, see [Build tags](#build-tags).
+`generate` reads the source with the Go toolchain's package loader and never runs nor links your app, but it does compile: to get the types of your code, the loader compiles your packages and the packages they import, cgo included, into the build cache `go build` uses. A run on a cold cache costs about a `go build`; a run after a `go build` or another `generate` is fast. Test files (`_test.go`) are never read, and a file outside your machine's build tags neither, see [Build tags](#build-tags).
 
 The file starts with `# Generated by github.com/bidirekt/go-sdk. Do not edit.` and has the `provides`, `consumes` and `schemas` sections that have content: resources by path, method and status, schemas in alphabetical order, fields in the order of the struct and members in the order declared.
 
@@ -470,7 +481,7 @@ These types stop `generate` at the field, which asks for a declared `type`: `tim
 
 ### Names
 
-A schema is named after its Go type, and an enum too; `bidirekt.Schema(value, bidirekt.Named("..."))` gives it another name. A list body is named `<Schema>List` unless it has `bidirekt.Named`. A schema name in a tag (`type=`, `items=`, `values=`, `union=`) is the name in the contract, which is not always the type's name; a name no schema declares stops `generate`. Two schemas with the same name, like two `Pet` types of different packages, stop `generate`: rename one with `bidirekt.Schema`.
+A schema is named after its Go type, and an enum too; `bidirekt.Schema(value, bidirekt.Named("..."))` gives it another name. A list body is named `<Schema>List` unless it has `bidirekt.Named`. A schema name in a tag (`type=`, `items=`, `values=`, `union=`) is the name in the contract, which is not always the type's name; a name no schema declares stops `generate`. Two schemas of the contract with the same name, like two `Pet` types of different packages, stop `generate`: rename one with `bidirekt.Schema`. A type the contract leaves out, an enum or struct of another module it does not use or a struct that only appears embedded, never collides.
 
 A struct with a marked field in the project is written even when no resource uses it, unless it only appears embedded in other structs. A struct of another module, a dependency or a module of your `go.work`, is read from its types when the contract uses it, with the same tag rules.
 
@@ -526,13 +537,13 @@ https://bidirekt.com/docs
 
 ## Development
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md). From the repository root, turn on the `pre-push` hook, which runs the Go checks of CI before every push: `gofmt` from the toolchain in `go.mod`, `go vet`, `golangci-lint`, `go-arch-lint`, `go test` and `govulncheck`.
+Read [CONTRIBUTING.md](CONTRIBUTING.md). From the repository root, turn on the `pre-push` hook, which runs the Go checks of CI before every push: `gofmt` from the toolchain in `cmd/go-sdk/go.mod`, then `go vet`, `golangci-lint`, `go-arch-lint`, `go test` and `govulncheck` in each of the two modules, the root and `cmd/go-sdk`.
 
 ```sh
 git config core.hooksPath .githooks
 ```
 
-`go test ./...` also runs `tests/readme`, which runs every example between `## Quickstart` and ``## The `generate` command`` through `generate`, in the module `example.com/petstore`, and compares the result with the YAML or the lines this README shows. An example is the fenced blocks right below a line with only the file's path in backticks, followed by a `yaml` block (`contracts/generated.yaml`) or a `text` block (stderr). The same test checks that the two `--check` messages above are the ones `generate` prints.
+`go test ./...` in `cmd/go-sdk` also runs `cmd/go-sdk/tests/readme`, which runs every example between `## Quickstart` and ``## The `generate` command`` through `generate`, in the module `example.com/petstore`, and compares the result with the YAML or the lines this README shows. An example is the fenced blocks right below a line with only the file's path in backticks, followed by a `yaml` block (`contracts/generated.yaml`) or a `text` block (stderr). The same test checks that the two `--check` messages above are the ones `generate` prints, and `cmd/go-sdk/tests/install` runs the commands of [Installation](#installation) in a new module.
 
 ## License
 
