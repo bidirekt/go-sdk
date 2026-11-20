@@ -37,7 +37,7 @@ type reading struct {
 	directFields       map[*types.Struct][]*directField
 	jsonFields         map[*types.Struct]structFields
 	fieldNodes         map[*types.Var]model.Node
-	inProgress         map[*types.TypeName]bool
+	inProgress         map[string]bool
 }
 
 func ProjectToResult(project Project) Result {
@@ -56,7 +56,7 @@ func ProjectToResult(project Project) Result {
 		directFields:     map[*types.Struct][]*directField{},
 		jsonFields:       map[*types.Struct]structFields{},
 		fieldNodes:       map[*types.Var]model.Node{},
-		inProgress:       map[*types.TypeName]bool{},
+		inProgress:       map[string]bool{},
 	}
 	reading.read()
 	return reading.result
@@ -72,7 +72,7 @@ func (this *reading) read() {
 			this.reportGoErrors(pkg)
 			continue
 		}
-		declaring = append(declaring, packageCalls{pkg: pkg, calls: packageToCalls(pkg)})
+		declaring = append(declaring, packageCalls{pkg: pkg, calls: this.packageToCallsWithArgumentsInPlace(pkg)})
 	}
 	for _, each := range declaring {
 		this.readOptionsInPlace(each)

@@ -29,7 +29,7 @@ func (this *reading) readBody(pkg *packages.Package, option sdkCall, expr ast.Ex
 		}
 		return body, true
 	}
-	place := bodyPlace{expr: expr, typed: typePlace{position: expr.Pos(), pkg: pkg.Types}, name: name, named: named}
+	place := bodyPlace{expr: expr, typed: typePlace{position: expr.Pos(), pkg: pkg.Types, body: true}, name: name, named: named}
 	body.Schema, readable = this.typeToBodySchema(typed.Type, place)
 	return body, readable
 }
@@ -143,7 +143,7 @@ func (this *reading) addDerivedSchema(name string, node model.Node, place bodyPl
 }
 
 func (this *reading) unreadableBody(written types.Type, place bodyPlace) (string, bool) {
-	this.addError(place.expr, "cannot translate a body of type %q: declare a struct with the fields of the contract marked with bidirekt:\"field\" and use it as the body", typeToText(written, place.typed.pkg))
+	this.addError(place.expr, "cannot translate a body of type %q: %sdeclare a struct with the fields of the contract marked with bidirekt:\"field\" and use it as the body", typeToText(written, place.typed.pkg), marshalerToReason(written))
 	return "", false
 }
 

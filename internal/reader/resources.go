@@ -57,6 +57,9 @@ func (this *reading) readResourceOption(pkg *packages.Package, declaration sdkCa
 		this.addError(arg, "%q is not an option written in place: write bidirekt.Request(...) or bidirekt.Response(...) as an argument of bidirekt.%s", types.ExprString(arg), declaration.function)
 		return false
 	}
+	if isMultiValueCall(pkg.TypesInfo, call) {
+		return false
+	}
 	option := sdkCall{function: function, call: call}
 	if function == "Request" {
 		if resource.Request != nil {

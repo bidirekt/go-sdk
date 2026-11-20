@@ -28,3 +28,9 @@ var _ = bidirekt.Enum[PetColor]()
 var _ = bidirekt.Enum(mood)
 
 var _ = bidirekt.Enum("small", "large")
+
+type PetBreed string
+
+var breeds = []PetBreed{"poodle", "beagle"}
+
+var _ = bidirekt.Enum(breeds...)

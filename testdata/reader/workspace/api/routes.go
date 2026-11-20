@@ -5,8 +5,10 @@ import (
 	"github.com/bidirekt/go-sdk"
 )
 
-var status = shared.PetStatusAvailable
+type Pet struct {
+	Status shared.PetStatus `json:"status" bidirekt:"field"`
+}
 
 var _ = bidirekt.Provides("GET", "/pets",
-	bidirekt.Response(200, nil),
+	bidirekt.Response(200, Pet{}),
 )

@@ -24,3 +24,20 @@ var _ = bidirekt.Provides("POST", "/pets",
 	bidirekt.Request(Pet{}),
 	bidirekt.Response(201, Pet{}),
 )
+
+var name = bidirekt.Named("PetCollection")
+
+var _ = bidirekt.Provides("GET", "/pets/featured",
+	bidirekt.Response(200, []Pet{}, name),
+)
+
+var bodyOptions []bidirekt.BodyOption
+
+var schemaOptions []bidirekt.SchemaOption
+
+var _ = bidirekt.Provides("PUT", "/pets/*",
+	bidirekt.Request(NewPet{}, bodyOptions...),
+	bidirekt.Response(200, []Pet{}, bodyOptions...),
+)
+
+var _ = bidirekt.Schema(Pet{}, schemaOptions...)

@@ -1,1 +1,2 @@
+pet.go:3 struct "Color" has its own MarshalJSON, so encoding/json never writes its marked fields: remove bidirekt:"field" from its fields, or remove the method
 pet.go:13 cannot translate "Color" to a contract type: declare it with bidirekt:"field type=<type>"

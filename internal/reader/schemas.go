@@ -31,23 +31,17 @@ func (this *reading) readProjectStructs() {
 			}
 			continue
 		}
-		scope := pkg.Types.Scope()
-		for _, name := range scope.Names() {
-			typeName, isTypeName := scope.Lookup(name).(*types.TypeName)
-			if !isTypeName || typeName.IsAlias() {
-				continue
-			}
-			named, isNamed := typeName.Type().(*types.Named)
-			if !isNamed {
-				continue
-			}
-			fields, isStruct := named.Underlying().(*types.Struct)
-			if !isStruct {
-				continue
-			}
+		for _, named := range scopeToStructs(pkg.Types.Scope()) {
+			marked := this.structToFields(named.Underlying().(*types.Struct)).marked
 			if named.TypeParams().Len() > 0 {
-				if this.structToFields(fields).marked {
-					this.addErrorAt(typeName.Pos(), "cannot translate generic type %q: declare a struct without type parameters, with its fields marked with bidirekt:\"field\", and use it as the type", typeName.Name())
+				if marked {
+					this.addErrorAt(named.Obj().Pos(), "cannot translate generic type %q: declare a struct without type parameters, with its fields marked with bidirekt:\"field\", and use it as the type", named.Obj().Name())
+				}
+				continue
+			}
+			if method := typeToMarshaler(named); method != "" {
+				if marked {
+					this.addErrorAt(named.Obj().Pos(), "struct %q has its own %s, so encoding/json never writes its marked fields: remove bidirekt:\"field\" from its fields, or remove the method", named.Obj().Name(), method)
 				}
 				continue
 			}
@@ -56,6 +50,24 @@ func (this *reading) readProjectStructs() {
 			}
 		}
 	}
+}
+
+func scopeToStructs(scope *types.Scope) []*types.Named {
+	var structs []*types.Named
+	for _, name := range scope.Names() {
+		typeName, isTypeName := scope.Lookup(name).(*types.TypeName)
+		if !isTypeName || typeName.IsAlias() {
+			continue
+		}
+		named, isNamed := typeName.Type().(*types.Named)
+		if !isNamed {
+			continue
+		}
+		if _, isStruct := named.Underlying().(*types.Struct); isStruct {
+			structs = append(structs, named)
+		}
+	}
+	return structs
 }
 
 func (this *reading) namedToSchema(named *types.Named) *structSchema {
@@ -75,7 +87,10 @@ func (this *reading) namedToSchema(named *types.Named) *structSchema {
 	}
 	schema := &structSchema{schema: model.NamedSchema{Name: this.schemaName(typeName), Location: this.locationAt(typeName.Pos())}}
 	this.schemas[typeName] = schema
+	outer := this.inProgress
+	this.inProgress = map[string]bool{}
 	schema.schema.Node = this.structToObject(fields, schema.schema.Name)
+	this.inProgress = outer
 	return schema
 }
 
@@ -121,18 +136,10 @@ func (this *reading) packagesToStructsByName() map[string][]*types.Named {
 		}
 		visited[pkg] = true
 		pending = append(pending, pkg.Imports()...)
-		scope := pkg.Scope()
-		for _, name := range scope.Names() {
-			typeName, isTypeName := scope.Lookup(name).(*types.TypeName)
-			if !isTypeName || typeName.IsAlias() {
-				continue
-			}
-			named, isNamed := typeName.Type().(*types.Named)
-			if !isNamed || named.TypeParams().Len() > 0 {
-				continue
-			}
-			if _, isStruct := named.Underlying().(*types.Struct); isStruct {
-				byName[this.schemaName(typeName)] = append(byName[this.schemaName(typeName)], named)
+		for _, named := range scopeToStructs(pkg.Scope()) {
+			if named.TypeParams().Len() == 0 {
+				name := this.schemaName(named.Obj())
+				byName[name] = append(byName[name], named)
 			}
 		}
 	}
@@ -145,9 +152,6 @@ func (this *reading) contractSchemaNames() map[string]bool {
 		if schema != nil {
 			names[schema.schema.Name] = true
 		}
-	}
-	for _, name := range this.enumNames {
-		names[name] = true
 	}
 	for _, derived := range this.derivedSchemas {
 		names[derived.Name] = true

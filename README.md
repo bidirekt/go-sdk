@@ -6,17 +6,19 @@ In Bidirekt, each side of an integration declares in a contract file what it pro
 
 ## Installation
 
-The SDK needs Go 1.26 or later. Add the generator to your module as a tool:
+The SDK needs Go 1.26 or later. Add the generator to your module as a tool, then tidy the module:
 
 ```sh
 go get -tool github.com/bidirekt/go-sdk/cmd/go-sdk
+go mod tidy
 ```
 
 This changes your `go.mod`:
 
 - a `tool github.com/bidirekt/go-sdk/cmd/go-sdk` line, and `github.com/bidirekt/go-sdk` in `require`;
 - `golang.org/x/tools`, `golang.org/x/mod` and `golang.org/x/sync` as `// indirect`, which the generator uses to read your code. They never enter your app's binary: only the `bidirekt` package does, and it imports nothing;
-- the `go` line goes up to `1.26.0` if it is older, and Go's minimal version selection may move a dependency your app already uses, such as `golang.org/x/sync`, up to the version the generator needs;
+- the `go` line goes up to `1.26.0` if it is older;
+- the `golang.org/x` modules your app already uses, such as `golang.org/x/net`, `golang.org/x/sys`, `golang.org/x/text`, `golang.org/x/crypto` or `golang.org/x/sync`, move up to the versions `golang.org/x/tools` needs, as Go's minimal version selection does. `go mod tidy` then adds their new versions to `go.sum`; without it, `go build` can stop with `missing go.sum entry`;
 - the `go` line also sets the runtime defaults (`GODEBUG`) built into your app, so after the bump its next build behaves like a Go 1.26 app: for example, `GOMAXPROCS` follows the container's CPU limit, and TLS 1.2 rejects SHA-1 signatures. To keep the old defaults, add a `godebug default=go1.XX` line to `go.mod` with the `go` version you had before, such as `godebug default=go1.24`.
 
 The `bidirekt` package your code imports holds the declarations of the contract. They do nothing at runtime: each returns an empty value, and `generate` reads the source instead of running it.
@@ -404,8 +406,8 @@ Each error goes to stderr as `file:line message`, with the file relative to the 
 
 - The method, path, provider, status and names are constants: a literal, `http.MethodGet`, `http.StatusOK` or a `const` of your code. Anything else stops `generate`, which never runs the code.
 - The method is uppercase (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) and the path is written as the contract writes it, with a `*` for each dynamic segment. `generate` never reads a framework's routes and writes the path as you declare it; `bidirekt validate` rejects a `{id}`. A status with a leading zero (`0200`, which Go reads as octal) stops `generate`.
-- The options are written in place, as arguments of `Provides` and `Consumes`: an option kept in a variable, passed with `opts...` or called anywhere else stops `generate`.
-- `Provides` and `Consumes` count only in the project's packages. `Enum` and `Schema` count in any package the project imports from a local module (a `go.work` module or a `replace` to a folder), so a shared module can hold the schemas and enums of several services.
+- The options are written in place, as arguments of `Provides` and `Consumes`: an option kept in a variable, passed with `opts...` or called anywhere else stops `generate`, and so do the arguments of any declaration given by a function that returns several values, as in `bidirekt.Provides(route())`.
+- `Provides` and `Consumes` count only in the project's packages. `Enum` and `Schema` count in any package the project imports from a local module (a `go.work` module or a `replace` to a folder), so a shared module can hold the schemas and enums of several services: each service's contract has only those it uses.
 
 ### Bodies
 
@@ -464,7 +466,7 @@ A struct tag Go cannot read (`json:"name",bidirekt:"field"`, `json: "name" bidir
 
 A declared `type` is the whole type of the field, in the contract's words, even where Go has no translation: a primitive (`string`, `integer`, `float`, `number`, `boolean`), the name of a schema, `array` with `items=`, or `map` with `values=`; `items` and `values` take a primitive or a schema name. A short form like `type=[]Pet` stops `generate`, which shows the long one. `optional` and `nullable` still come from Go when not declared, and a declared one wins.
 
-These types stop `generate` at the field, which asks for a declared `type`: `time.Time`, a type with its own `MarshalJSON` or `MarshalText`, `any` and an interface without `union=`, a map whose key is not a string type (declare `type=map values=...`), `[]byte` and a named type over it, a channel, a function and `complex64`/`complex128`. A struct with no marked field used by a field or a body stops `generate` too, as does a generic struct.
+These types stop `generate` at the field, which asks for a declared `type`: `time.Time`, a type with its own `MarshalJSON` or `MarshalText`, `any` and an interface without `union=`, a map whose key is not a string type (declare `type=map values=...`), `[]byte` and a named type over it, a channel, a function and `complex64`/`complex128`. A struct with no marked field used by a field or a body stops `generate` too, as does a generic struct, and a struct with marked fields and its own `MarshalJSON` or `MarshalText`, whose marked fields `encoding/json` never writes.
 
 ### Names
 
@@ -474,7 +476,7 @@ A struct with a marked field in the project is written even when no resource use
 
 ### Enums and unions
 
-`bidirekt.Enum(PetStatusAvailable, PetStatusAdopted)` declares the enum of the named string type of its values, `PetStatus`, with the values in the order of the arguments; `bidirekt.Enum[PetStatus]("available", "adopted")` names the type. The values come from the arguments, never from the constants of the type. A field of that type is a `ref` to the enum, and a named string type without `bidirekt.Enum` is a `string`. A repeated or empty value, an `Enum` without values or on plain `string`, and two `Enum` of one type stop `generate`.
+`bidirekt.Enum(PetStatusAvailable, PetStatusAdopted)` declares the enum of the named string type of its values, `PetStatus`, with the values in the order of the arguments; `bidirekt.Enum[PetStatus]("available", "adopted")` names the type. The values come from the arguments, never from the constants of the type. A field of that type is a `ref` to the enum, and a named string type without `bidirekt.Enum` is a `string`. An enum of the project is written even when no field uses it, and one from outside the project only when the contract uses it, as a struct is. A repeated or empty value, an `Enum` without values or on plain `string`, and two `Enum` of one type stop `generate`.
 
 A field of an interface type with `union={card: Card, pix: Pix}` is a `union` whose members are `ref`s to those schemas; on a `[]Payment` or a `map[string]Payment` field, the union is the items or the values. Each member is a struct schema that implements the interface, by value or by pointer, and appears once.
 

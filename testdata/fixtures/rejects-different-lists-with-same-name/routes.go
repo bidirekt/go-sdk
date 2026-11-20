@@ -23,3 +23,15 @@ var _ = bidirekt.Provides("GET", "/residents",
 var _ = bidirekt.Provides("GET", "/visitors",
 	bidirekt.Response(200, []string{}, bidirekt.Named("Residents")),
 )
+
+var _ = bidirekt.Provides("GET", "/health",
+	bidirekt.Response(200, struct {
+		Status string `json:"status" bidirekt:"field"`
+	}{}, bidirekt.Named("Health")),
+)
+
+var _ = bidirekt.Provides("GET", "/ready",
+	bidirekt.Response(200, struct {
+		Ready bool `json:"ready" bidirekt:"field"`
+	}{}, bidirekt.Named("Health")),
+)

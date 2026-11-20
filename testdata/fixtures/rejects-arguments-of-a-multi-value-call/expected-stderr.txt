@@ -1,0 +1,6 @@
+routes.go:33 arguments of bidirekt.Provides must be written in place, one by one: write them instead of "route()"
+routes.go:35 arguments of bidirekt.Consumes must be written in place, one by one: write them instead of "consumed()"
+routes.go:38 arguments of bidirekt.Response must be written in place, one by one: write them instead of "ok()"
+routes.go:42 arguments of bidirekt.Request must be written in place, one by one: write them instead of "body()"
+routes.go:46 arguments of bidirekt.Schema must be written in place, one by one: write them instead of "body()"
+routes.go:48 arguments of bidirekt.Enum must be written in place, one by one: write them instead of "statuses()"

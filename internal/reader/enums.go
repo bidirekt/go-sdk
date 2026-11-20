@@ -52,13 +52,13 @@ func (this *reading) readSchemaDeclarationTypes() {
 		if _, isEnum := this.enumNames[declaration.typeName]; isEnum {
 			continue
 		}
-		switch typed.Underlying().(type) {
+		switch shape := typed.Underlying().(type) {
 		case *types.Slice, *types.Array, *types.Map:
 			if this.schemas[declaration.typeName] != nil || !declaration.inProject {
 				continue
 			}
 		case *types.Struct:
-			if typed.TypeParams().Len() == 0 && this.namedToSchema(typed) != nil {
+			if typed.TypeParams().Len() == 0 && this.structToFields(shape).marked {
 				continue
 			}
 		}
@@ -113,11 +113,10 @@ func (this *reading) readEnum(pkg *packages.Package, declaration sdkCall) {
 	if !readable {
 		return
 	}
-	name := this.schemaName(named.Obj())
-	this.enumNames[named.Obj()] = name
-	this.result.Contract.Schemas = append(this.result.Contract.Schemas, model.NamedSchema{
-		Name:     name,
-		Node:     model.Node{Shape: model.Enum{Members: members}},
-		Location: this.location(declaration.call),
-	})
+	name := this.schemaName(typeName)
+	this.enumNames[typeName] = name
+	this.schemas[typeName] = &structSchema{
+		schema:   model.NamedSchema{Name: name, Node: model.Node{Shape: model.Enum{Members: members}}, Location: this.location(declaration.call)},
+		declared: this.loaded.inProject[pkg.PkgPath],
+	}
 }

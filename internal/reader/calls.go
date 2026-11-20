@@ -53,3 +53,11 @@ func callToSDKOption(info *types.Info, expr ast.Expr, functions ...string) (*ast
 	}
 	return call, function, true
 }
+
+func isMultiValueCall(info *types.Info, call *ast.CallExpr) bool {
+	if len(call.Args) != 1 {
+		return false
+	}
+	_, isTuple := info.TypeOf(call.Args[0]).(*types.Tuple)
+	return isTuple
+}

@@ -11,6 +11,7 @@ type typePlace struct {
 	position token.Pos
 	pkg      *types.Package
 	union    *model.Union
+	body     bool
 }
 
 func (this *reading) fieldToNode(field *directField) model.Node {
@@ -53,13 +54,13 @@ func (this *reading) typeToNode(original types.Type, place typePlace) (model.Nod
 	// itself would never end.
 	if named, isNamed := written.(*types.Named); isNamed {
 		if _, isStruct := named.Underlying().(*types.Struct); !isStruct {
-			typeName := named.Origin().Obj()
-			if this.inProgress[typeName] {
+			instance := types.TypeString(named, nil)
+			if this.inProgress[instance] {
 				this.addErrorAt(place.position, "cannot translate recursive type %q: only a struct can contain itself, so declare a struct with its fields marked with bidirekt:\"field\" and use it instead", typeToText(original, place.pkg))
 				return model.Node{}, false
 			}
-			this.inProgress[typeName] = true
-			defer delete(this.inProgress, typeName)
+			this.inProgress[instance] = true
+			defer delete(this.inProgress, instance)
 		}
 	}
 	if pointer, isPointer := written.Underlying().(*types.Pointer); isPointer {
@@ -92,6 +93,10 @@ func (this *reading) typeToNode(original types.Type, place typePlace) (model.Nod
 		return model.Node{Shape: model.Array{Items: items}}, readable
 	case *types.Map:
 		if basic, isBasic := shape.Key().Underlying().(*types.Basic); !isBasic || basic.Info()&types.IsString == 0 {
+			if place.body {
+				this.addErrorAt(place.position, "cannot translate %q in a body: a map key must be a string, so give the map a string key type", typeToText(original, place.pkg))
+				return model.Node{}, false
+			}
 			this.addErrorAt(place.position, "cannot translate %q to a contract type: a map key must be a string, or declare it with bidirekt:\"field type=map values=<type>\"", typeToText(original, place.pkg))
 			return model.Node{}, false
 		}
@@ -153,18 +158,35 @@ func (this *reading) structTypeToNode(written types.Type, fields *types.Struct, 
 }
 
 func (this *reading) untranslatable(written types.Type, place typePlace) (model.Node, bool) {
+	if place.body {
+		this.addErrorAt(place.position, "cannot translate %q in a body: %sdeclare a struct with the fields of the contract marked with bidirekt:\"field\" and use it in the body", typeToText(written, place.pkg), marshalerToReason(written))
+		return model.Node{}, false
+	}
 	this.addErrorAt(place.position, "cannot translate %q to a contract type: declare it with bidirekt:\"field type=<type>\"", typeToText(written, place.pkg))
 	return model.Node{}, false
 }
 
 func hasMarshaler(written types.Type) bool {
-	for _, candidate := range []types.Type{written, types.NewPointer(written)} {
-		methods := types.NewMethodSet(candidate)
-		if methods.Lookup(nil, "MarshalJSON") != nil || methods.Lookup(nil, "MarshalText") != nil {
-			return true
+	return typeToMarshaler(written) != ""
+}
+
+func typeToMarshaler(written types.Type) string {
+	written = types.Unalias(written)
+	for _, method := range []string{"MarshalJSON", "MarshalText"} {
+		for _, candidate := range []types.Type{written, types.NewPointer(written)} {
+			if types.NewMethodSet(candidate).Lookup(nil, method) != nil {
+				return method
+			}
 		}
 	}
-	return false
+	return ""
+}
+
+func marshalerToReason(written types.Type) string {
+	if method := typeToMarshaler(written); method != "" {
+		return "encoding/json writes it with its " + method + ", so "
+	}
+	return ""
 }
 
 func isJSONNumber(named *types.Named) bool {

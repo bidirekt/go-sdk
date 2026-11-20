@@ -7,6 +7,18 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
+func (this *reading) packageToCallsWithArgumentsInPlace(pkg *packages.Package) []sdkCall {
+	var calls []sdkCall
+	for _, call := range packageToCalls(pkg) {
+		if isMultiValueCall(pkg.TypesInfo, call.call) {
+			this.addError(call.call, "arguments of bidirekt.%s must be written in place, one by one: write them instead of %q", call.function, types.ExprString(call.call.Args[0]))
+			continue
+		}
+		calls = append(calls, call)
+	}
+	return calls
+}
+
 func (this *reading) readOptionsInPlace(each packageCalls) {
 	info := each.pkg.TypesInfo
 	inPlace := map[*ast.CallExpr]bool{}

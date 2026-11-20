@@ -69,7 +69,7 @@ func TestRecognizesCallsByTheirPackageOfOrigin(t *testing.T) {
 	})
 }
 
-func TestReadsEnumsButNotResourcesOfAnotherWorkspaceModule(t *testing.T) {
+func TestReadsTheUsedEnumsButNotResourcesOfAnotherWorkspaceModule(t *testing.T) {
 	dir := caseDir(t, "workspace")
 	t.Setenv("GOWORK", filepath.Join(dir, "go.work"))
 
@@ -82,11 +82,18 @@ func TestReadsEnumsButNotResourcesOfAnotherWorkspaceModule(t *testing.T) {
 		{
 			Method:    "GET",
 			Path:      "/pets",
-			Responses: []model.Response{{Status: 200, Body: model.Body{Location: at(dir, "api/routes.go", 11)}}},
-			Location:  at(dir, "api/routes.go", 10),
+			Responses: []model.Response{{Status: 200, Body: model.Body{Schema: "Pet", Location: at(dir, "api/routes.go", 13)}}},
+			Location:  at(dir, "api/routes.go", 12),
 		},
 	})
-	equal(t, "the enum of the shared module", result.Contract.Schemas, []model.NamedSchema{
+	equal(t, "the enum of the shared module the contract uses, and not the one it does not", result.Contract.Schemas, []model.NamedSchema{
+		{
+			Name: "Pet",
+			Node: model.Node{Shape: model.Object{Properties: []model.Property{
+				{Name: "status", Node: model.Node{Shape: model.Ref{Schema: "PetStatus"}}, Location: at(dir, "api/routes.go", 9)},
+			}}},
+			Location: at(dir, "api/routes.go", 8),
+		},
 		{
 			Name:     "PetStatus",
 			Node:     model.Node{Shape: model.Enum{Members: []string{"available", "adopted"}}},

@@ -312,8 +312,11 @@ func descriptionToError(description string) string {
 	if descriptionPattern.MatchString(description) {
 		return ""
 	}
-	quoted, _ := json.Marshal(description)
-	return fmt.Sprintf("description %s must be ASCII letters and digits, with single spaces between words: remove or replace the other characters", quoted)
+	var quoted strings.Builder
+	encoder := json.NewEncoder(&quoted)
+	encoder.SetEscapeHTML(false)
+	_ = encoder.Encode(description)
+	return fmt.Sprintf("description %s must be ASCII letters and digits, with single spaces between words: remove or replace the other characters", strings.TrimSuffix(quoted.String(), "\n"))
 }
 
 func unreadable(argument, usage string) string {

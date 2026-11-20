@@ -83,7 +83,7 @@ func consumedToYaml(resources []model.Resource) *yamlMap {
 }
 
 func resourcesToSortedGroups(resources []model.Resource, resourceToKey func(model.Resource) string) [][]model.Resource {
-	groups := model.ResourcesToGroups(resources, resourceToKey)
+	groups := model.ValuesToGroups(resources, resourceToKey)
 	slices.SortFunc(groups, func(a, b []model.Resource) int { return strings.Compare(resourceToKey(a[0]), resourceToKey(b[0])) })
 	return groups
 }

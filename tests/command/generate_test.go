@@ -255,6 +255,18 @@ consumes:
 	}
 }
 
+func TestFailsTheCheckWhenTheOutputIsAFolder(t *testing.T) {
+	t.Parallel()
+	dir := newModule(t, map[string]string{"pets.go": deletePet})
+	if err := os.MkdirAll(filepath.Join(dir, "folder"), 0o755); err != nil {
+		t.Fatalf("got error %v, want none", err)
+	}
+
+	result := command.ArgsToResult([]string{"generate", "--check", "--out", "folder"}, dir)
+
+	equal(t, "result", result, command.Result{ExitCode: 1, Stderr: "cannot read \"folder\": it is a folder\n"})
+}
+
 func TestFailsWithTheSystemMessageWhenTheOutputCannotBeWritten(t *testing.T) {
 	t.Parallel()
 	dir := newModule(t, map[string]string{"pets.go": deletePet})

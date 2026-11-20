@@ -1,11 +1,33 @@
 package petstore
 
 import (
+	"time"
+
 	"github.com/bidirekt/go-sdk"
 )
 
 type Owner struct {
 	Name string `json:"name"`
+}
+
+type Pet struct {
+	Name string `json:"name" bidirekt:"field"`
+}
+
+type Price struct {
+	Cents int
+}
+
+func (Price) MarshalJSON() ([]byte, error) {
+	return []byte(`"0.00"`), nil
+}
+
+type Label struct {
+	Text string
+}
+
+func (*Label) MarshalText() ([]byte, error) {
+	return []byte("label"), nil
 }
 
 var _ = bidirekt.Provides("GET", "/name",
@@ -40,4 +62,24 @@ var _ = bidirekt.Provides("GET", "/owner",
 
 var _ = bidirekt.Provides("GET", "/tags",
 	bidirekt.Response(200, []string{}),
+)
+
+var _ = bidirekt.Provides("GET", "/price",
+	bidirekt.Response(200, Price{}),
+)
+
+var _ = bidirekt.Provides("GET", "/label",
+	bidirekt.Response(200, &Label{}),
+)
+
+var _ = bidirekt.Provides("GET", "/dates",
+	bidirekt.Response(200, []time.Time{}, bidirekt.Named("Dates")),
+)
+
+var _ = bidirekt.Provides("GET", "/prices",
+	bidirekt.Response(200, map[string]Price{}, bidirekt.Named("Prices")),
+)
+
+var _ = bidirekt.Provides("GET", "/pets-by-id",
+	bidirekt.Response(200, map[int]Pet{}, bidirekt.Named("PetsByID")),
 )

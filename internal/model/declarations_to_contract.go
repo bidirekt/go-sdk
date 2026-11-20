@@ -80,23 +80,14 @@ func NodeToReferences(node Node, location SourceLocation) []Reference {
 }
 
 func declarationsToSchemas(declarations []NamedSchema) ([]NamedSchema, []Diagnostic) {
-	var names []string
-	groups := map[string][]NamedSchema{}
-	for _, declaration := range declarations {
-		if _, found := groups[declaration.Name]; !found {
-			names = append(names, declaration.Name)
-		}
-		groups[declaration.Name] = append(groups[declaration.Name], declaration)
-	}
 	var schemas []NamedSchema
 	var errors []Diagnostic
-	for _, name := range names {
-		group := groups[name]
+	for _, group := range ValuesToGroups(declarations, func(declaration NamedSchema) string { return declaration.Name }) {
 		if isOneDerivedSchema(group) {
 			schemas = append(schemas, group[0])
 			continue
 		}
-		message := collisionToMessage(name, group)
+		message := collisionToMessage(group[0].Name, group)
 		for _, declaration := range group {
 			errors = append(errors, Diagnostic{Message: message, Location: declaration.Location})
 		}

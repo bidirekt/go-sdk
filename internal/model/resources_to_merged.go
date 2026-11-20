@@ -8,7 +8,7 @@ import (
 func providedToMerged(provides []Resource) ([]Resource, []Diagnostic) {
 	var resources []Resource
 	var errors []Diagnostic
-	for _, group := range ResourcesToGroups(provides, func(resource Resource) [3]string {
+	for _, group := range ValuesToGroups(provides, func(resource Resource) [3]string {
 		return [3]string{"", resource.Method, resource.Path}
 	}) {
 		resources = append(resources, group[0])
@@ -27,7 +27,7 @@ func providedToMerged(provides []Resource) ([]Resource, []Diagnostic) {
 func consumedToMerged(consumes []Resource) ([]Resource, []Diagnostic) {
 	var resources []Resource
 	var errors []Diagnostic
-	for _, group := range ResourcesToGroups(consumes, func(resource Resource) [3]string {
+	for _, group := range ValuesToGroups(consumes, func(resource Resource) [3]string {
 		return [3]string{resource.Provider, resource.Method, resource.Path}
 	}) {
 		first := group[0]
@@ -89,20 +89,4 @@ func schemaToText(schema string) string {
 		return "null"
 	}
 	return `"` + schema + `"`
-}
-
-func ResourcesToGroups[K comparable](resources []Resource, resourceToKey func(Resource) K) [][]Resource {
-	var groups [][]Resource
-	indexByKey := map[K]int{}
-	for _, resource := range resources {
-		key := resourceToKey(resource)
-		index, found := indexByKey[key]
-		if !found {
-			index = len(groups)
-			indexByKey[key] = index
-			groups = append(groups, nil)
-		}
-		groups[index] = append(groups[index], resource)
-	}
-	return groups
 }
