@@ -1,0 +1,2 @@
+api.go:13 schema "Money" is not declared: reference a schema by its name in the contract
+money/money.go:3 struct "Money" has its own MarshalJSON, so encoding/json never writes its marked fields: remove bidirekt:"field" from its fields, or remove the method

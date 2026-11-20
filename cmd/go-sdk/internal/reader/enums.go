@@ -58,7 +58,7 @@ func (this *reading) readSchemaDeclarationTypes() {
 				continue
 			}
 		case *types.Struct:
-			if typed.TypeParams().Len() == 0 && this.structToFields(shape).marked {
+			if this.structToFields(shape).marked {
 				continue
 			}
 		}
@@ -83,7 +83,6 @@ func (this *reading) readEnum(pkg *packages.Package, declaration sdkCall) {
 		return
 	}
 	typeName := named.Obj()
-	this.reportGoErrorsOf(typeName.Pkg())
 	if len(declaration.call.Args) == 0 {
 		this.addError(declaration.call, "bidirekt.Enum of %q has no values: write the values of the enum as its arguments", typeName.Name())
 		return

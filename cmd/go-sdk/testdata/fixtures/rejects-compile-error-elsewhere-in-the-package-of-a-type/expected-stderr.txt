@@ -1,0 +1,1 @@
+models/models.go:5 cannot use "many" (untyped string constant) as int value in variable declaration

@@ -39,7 +39,6 @@ type reading struct {
 	jsonFields         map[*types.Struct]structFields
 	fieldNodes         map[*types.Var]model.Node
 	inProgress         map[string]bool
-	reportedPackages   map[*packages.Package]bool
 }
 
 func ProjectToResult(project Project) Result {
@@ -59,22 +58,23 @@ func ProjectToResult(project Project) Result {
 		jsonFields:       map[*types.Struct]structFields{},
 		fieldNodes:       map[*types.Var]model.Node{},
 		inProgress:       map[string]bool{},
-		reportedPackages: map[*packages.Package]bool{},
 	}
 	reading.read()
 	return reading.result
 }
 
 func (this *reading) read() {
-	var declaring []packageCalls
+	var importing []*packages.Package
 	for _, pkg := range this.loaded.packages {
-		if !packageImportsSDK(pkg) {
-			continue
+		if packageImportsSDK(pkg) {
+			importing = append(importing, pkg)
 		}
-		if len(pkg.Errors) > 0 {
-			this.reportGoErrors(pkg)
-			continue
-		}
+	}
+	if this.stopsOnGoErrors(importing) {
+		return
+	}
+	var declaring []packageCalls
+	for _, pkg := range importing {
 		declaring = append(declaring, packageCalls{pkg: pkg, calls: this.packageToCallsWithArgumentsInPlace(pkg)})
 	}
 	for _, each := range declaring {
@@ -93,8 +93,25 @@ func (this *reading) read() {
 	this.readSchemaDeclarationTypes()
 	this.readTagReferences()
 	contractTypeNames := this.schemasToContractTypeNames()
+	var schemaPackages []*packages.Package
+	for _, typeName := range contractTypeNames {
+		if pkg, found := this.loaded.byPath[typeName.Pkg().Path()]; found {
+			schemaPackages = append(schemaPackages, pkg)
+		}
+	}
+	if this.stopsOnGoErrors(schemaPackages) {
+		return
+	}
 	this.readUnionMembers(contractTypeNames)
 	this.typeNamesToContract(contractTypeNames)
+}
+
+func (this *reading) stopsOnGoErrors(roots []*packages.Package) bool {
+	goErrors := packagesToGoErrors(roots, this.project.Dir)
+	if len(goErrors) > 0 {
+		this.result = Result{Errors: goErrors}
+	}
+	return len(goErrors) > 0
 }
 
 func (this *reading) readCalls(declaring []packageCalls, read func(*packages.Package, sdkCall), functions ...string) {
@@ -121,26 +138,6 @@ func (this *reading) addErrorAt(position token.Pos, format string, arguments ...
 
 func (this *reading) addWarningAt(position token.Pos, format string, arguments ...any) {
 	this.result.Warnings = append(this.result.Warnings, model.Diagnostic{Message: fmt.Sprintf(format, arguments...), Location: this.locationAt(position)})
-}
-
-func (this *reading) reportGoErrors(pkg *packages.Package) {
-	if this.reportedPackages[pkg] {
-		return
-	}
-	this.reportedPackages[pkg] = true
-	this.result.Errors = append(this.result.Errors, packageToGoErrors(pkg, this.project.Dir)...)
-}
-
-func (this *reading) reportGoErrorsOf(pkg *types.Package) (hasErrors bool) {
-	if pkg == nil {
-		return false
-	}
-	loaded, found := this.loaded.byPath[pkg.Path()]
-	if !found || len(loaded.Errors) == 0 {
-		return false
-	}
-	this.reportGoErrors(loaded)
-	return true
 }
 
 // A file whose import block does not parse lists no import, but its syntax keeps the import spec.

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/bidirekt/go-sdk/cmd/go-sdk/internal/model"
-	"golang.org/x/tools/go/packages"
 )
 
 type structSchema struct {
@@ -25,26 +24,7 @@ func (this *reading) readProjectStructs() {
 		if !this.loaded.inProject[pkg.PkgPath] || pkg.Types == nil {
 			continue
 		}
-		if len(pkg.Errors) > 0 {
-			if packageHasBidirektTag(pkg) {
-				this.reportGoErrors(pkg)
-			}
-			continue
-		}
 		for _, named := range scopeToStructs(pkg.Types.Scope()) {
-			marked := this.structToFields(named.Underlying().(*types.Struct)).marked
-			if named.TypeParams().Len() > 0 {
-				if marked {
-					this.addErrorAt(named.Obj().Pos(), "cannot translate generic type %q: declare a struct without type parameters, with its fields marked with bidirekt:\"field\", and use it as the type", named.Obj().Name())
-				}
-				continue
-			}
-			if method := typeToMarshaler(named); method != "" {
-				if marked {
-					this.addErrorAt(named.Obj().Pos(), "struct %q has its own %s, so encoding/json never writes its marked fields: remove bidirekt:\"field\" from its fields, or remove the method", named.Obj().Name(), method)
-				}
-				continue
-			}
 			if schema := this.namedToSchema(named); schema != nil {
 				schema.declared = true
 			}
@@ -75,10 +55,17 @@ func (this *reading) namedToSchema(named *types.Named) *structSchema {
 	if schema, found := this.schemas[typeName]; found {
 		return schema
 	}
+	this.schemas[typeName] = nil
 	fields := named.Underlying().(*types.Struct)
-	this.reportGoErrorsOf(typeName.Pkg())
 	if !this.structToFields(fields).marked {
-		this.schemas[typeName] = nil
+		return nil
+	}
+	if named.Origin().TypeParams().Len() > 0 {
+		this.addErrorAt(typeName.Pos(), "cannot translate generic type %q: declare a struct without type parameters, with its fields marked with bidirekt:\"field\", and use it as the type", typeName.Name())
+		return nil
+	}
+	if method := typeToMarshaler(named); method != "" {
+		this.addErrorAt(typeName.Pos(), "struct %q has its own %s, so encoding/json never writes its marked fields: remove bidirekt:\"field\" from its fields, or remove the method", typeName.Name(), method)
 		return nil
 	}
 	schema := &structSchema{schema: model.NamedSchema{Name: this.schemaName(typeName), Location: this.locationAt(typeName.Pos())}}
@@ -133,10 +120,8 @@ func (this *reading) packagesToStructsByName() map[string][]*types.Named {
 		visited[pkg] = true
 		pending = append(pending, pkg.Imports()...)
 		for _, named := range scopeToStructs(pkg.Scope()) {
-			if named.TypeParams().Len() == 0 {
-				name := this.schemaName(named.Obj())
-				byName[name] = append(byName[name], named)
-			}
+			name := this.schemaName(named.Obj())
+			byName[name] = append(byName[name], named)
 		}
 	}
 	return byName
@@ -256,22 +241,6 @@ func (this *reading) typeNamesToContract(typeNames []*types.TypeName) {
 		this.result.Contract.Schemas = append(this.result.Contract.Schemas, this.schemas[typeName].schema)
 	}
 	this.result.Contract.Schemas = append(this.result.Contract.Schemas, this.derivedSchemas...)
-}
-
-func packageHasBidirektTag(pkg *packages.Package) bool {
-	scope := pkg.Types.Scope()
-	for _, name := range scope.Names() {
-		fields, isStruct := scope.Lookup(name).Type().Underlying().(*types.Struct)
-		if !isStruct {
-			continue
-		}
-		for index := range fields.NumFields() {
-			if strings.Contains(fields.Tag(index), tagKey) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (this *reading) locationAt(position token.Pos) model.SourceLocation {

@@ -91,17 +91,38 @@ func isLocalModule(module *packages.Module) bool {
 	return module != nil && (module.Main || (module.Replace != nil && module.Replace.Version == ""))
 }
 
-// As go build does: the load errors of the package and of its imports first, then the compiler's output,
-// and go/types only when the compiler was not run.
-func packageToGoErrors(pkg *packages.Package, dir string) []model.Diagnostic {
-	var loadErrors []model.Diagnostic
-	for _, imported := range pkg.Imports {
-		for _, packageError := range imported.Errors {
-			if packageError.Kind == packages.ListError {
-				loadErrors = append(loadErrors, listErrorToDiagnostics(packageError, dir)...)
-			}
+// The errors of the packages the roots compile with, the roots included. As go build does, a package that
+// imports a failing package is not compiled, so its errors, derived from that package's, are not reported.
+func packagesToGoErrors(roots []*packages.Package, dir string) []model.Diagnostic {
+	failing := map[*packages.Package]bool{}
+	visited := map[*packages.Package]bool{}
+	var diagnostics []model.Diagnostic
+	var visit func(pkg *packages.Package)
+	visit = func(pkg *packages.Package) {
+		if visited[pkg] {
+			return
+		}
+		visited[pkg] = true
+		importsFailing := false
+		for _, imported := range pkg.Imports {
+			visit(imported)
+			importsFailing = importsFailing || failing[imported]
+		}
+		failing[pkg] = importsFailing || len(pkg.Errors) > 0
+		if !importsFailing && len(pkg.Errors) > 0 {
+			diagnostics = append(diagnostics, packageToGoErrors(pkg, dir)...)
 		}
 	}
+	for _, root := range roots {
+		visit(root)
+	}
+	return diagnostics
+}
+
+// As go build does: the load errors first, then the compiler's output, and go/types only when the compiler
+// was not run.
+func packageToGoErrors(pkg *packages.Package, dir string) []model.Diagnostic {
+	var loadErrors []model.Diagnostic
 	var buildOutput []model.Diagnostic
 	var sourceErrors []model.Diagnostic
 	for _, packageError := range pkg.Errors {

@@ -62,7 +62,7 @@ func run(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	command := exec.Command("go", args...)
 	command.Dir = dir
-	command.Env = append(os.Environ(), "GOWORK=off")
+	command.Env = append(os.Environ(), "GOWORK=off", "GONOPROXY=github.com/bidirekt/go-sdk", "GOVCS=github.com/bidirekt/go-sdk:off")
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("go %v: got error %v, want none\n%s", args, err, output)
