@@ -8,10 +8,11 @@ import (
 )
 
 type typePlace struct {
-	position token.Pos
-	pkg      *types.Package
-	union    *model.Union
-	body     bool
+	position    token.Pos
+	pkg         *types.Package
+	union       *model.Union
+	body        bool
+	hasGoErrors bool
 }
 
 func (this *reading) fieldToNode(field *directField) model.Node {
@@ -31,7 +32,8 @@ func (this *reading) fieldToNode(field *directField) model.Node {
 	case options.union != nil && !reachesInterface(written, map[types.Type]bool{}):
 		this.addErrorAt(field.variable.Pos(), "cannot place the union= in %q: write it on a field whose type, items or values are an interface", typeToText(written, field.variable.Pkg()))
 	default:
-		node, _ = this.typeToNode(written, typePlace{position: field.variable.Pos(), pkg: field.variable.Pkg(), union: options.union})
+		place := typePlace{position: field.variable.Pos(), pkg: field.variable.Pkg(), union: options.union, hasGoErrors: this.reportGoErrorsOf(field.variable.Pkg())}
+		node, _ = this.typeToNode(written, place)
 	}
 	if field.omitEmpty || field.omitZero {
 		node.Nullable = false
@@ -49,6 +51,9 @@ func (this *reading) fieldToNode(field *directField) model.Node {
 }
 
 func (this *reading) typeToNode(original types.Type, place typePlace) (model.Node, bool) {
+	if this.reportGoErrorsOfType(original) {
+		place.hasGoErrors = true
+	}
 	written := types.Unalias(original)
 	// A struct is a ref to its schema; any other named type is written in place, so one that contains
 	// itself would never end.
@@ -118,6 +123,9 @@ func (this *reading) basicToNode(written types.Type, basic *types.Basic, place t
 	info := basic.Info()
 	switch {
 	case basic.Kind() == types.Invalid:
+		if !place.hasGoErrors {
+			this.addErrorAt(place.position, "cannot translate %q: Go cannot resolve its type, so run go build and fix the errors it reports", typeToText(written, place.pkg))
+		}
 		return model.Node{}, false
 	case info&types.IsBoolean != 0:
 		return primitiveNode("boolean"), true
@@ -156,6 +164,20 @@ func (this *reading) structTypeToNode(written types.Type, fields *types.Struct, 
 	}
 	schema.referenced = true
 	return model.Node{Shape: model.Ref{Schema: schema.schema.Name}}, true
+}
+
+func (this *reading) reportGoErrorsOfType(written types.Type) (hasErrors bool) {
+	for {
+		switch typed := written.(type) {
+		case *types.Alias:
+			hasErrors = this.reportGoErrorsOf(typed.Obj().Pkg()) || hasErrors
+			written = typed.Rhs()
+		case *types.Named:
+			return this.reportGoErrorsOf(typed.Obj().Pkg()) || hasErrors
+		default:
+			return hasErrors
+		}
+	}
 }
 
 func (this *reading) untranslatable(written types.Type, place typePlace) (model.Node, bool) {

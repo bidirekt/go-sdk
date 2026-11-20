@@ -76,11 +76,7 @@ func (this *reading) namedToSchema(named *types.Named) *structSchema {
 		return schema
 	}
 	fields := named.Underlying().(*types.Struct)
-	if typeName.Pkg() != nil {
-		if pkg, loaded := this.loaded.byPath[typeName.Pkg().Path()]; loaded && len(pkg.Errors) > 0 {
-			this.reportGoErrors(pkg)
-		}
-	}
+	this.reportGoErrorsOf(typeName.Pkg())
 	if !this.structToFields(fields).marked {
 		this.schemas[typeName] = nil
 		return nil

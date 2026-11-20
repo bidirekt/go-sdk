@@ -37,6 +37,9 @@ func (this *reading) readBody(pkg *packages.Package, option sdkCall, expr ast.Ex
 // The body is the static type of the expression, a pointer counted by the type it points to.
 func (this *reading) typeToBodySchema(original types.Type, place bodyPlace) (string, bool) {
 	pointed := deref(original)
+	if this.reportGoErrorsOfType(pointed) {
+		place.typed.hasGoErrors = true
+	}
 	written := types.Unalias(pointed)
 	if named, isNamed := written.(*types.Named); isNamed && !hasMarshaler(written) {
 		switch named.Underlying().(type) {

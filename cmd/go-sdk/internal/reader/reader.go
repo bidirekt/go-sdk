@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"slices"
+	"strings"
 
 	"github.com/bidirekt/go-sdk/cmd/go-sdk/internal/model"
 	"golang.org/x/tools/go/packages"
@@ -38,6 +39,7 @@ type reading struct {
 	jsonFields         map[*types.Struct]structFields
 	fieldNodes         map[*types.Var]model.Node
 	inProgress         map[string]bool
+	reportedPackages   map[*packages.Package]bool
 }
 
 func ProjectToResult(project Project) Result {
@@ -57,6 +59,7 @@ func ProjectToResult(project Project) Result {
 		jsonFields:       map[*types.Struct]structFields{},
 		fieldNodes:       map[*types.Var]model.Node{},
 		inProgress:       map[string]bool{},
+		reportedPackages: map[*packages.Package]bool{},
 	}
 	reading.read()
 	return reading.result
@@ -65,7 +68,7 @@ func ProjectToResult(project Project) Result {
 func (this *reading) read() {
 	var declaring []packageCalls
 	for _, pkg := range this.loaded.packages {
-		if _, found := pkg.Imports[sdkPath]; !found {
+		if !packageImportsSDK(pkg) {
 			continue
 		}
 		if len(pkg.Errors) > 0 {
@@ -121,7 +124,38 @@ func (this *reading) addWarningAt(position token.Pos, format string, arguments .
 }
 
 func (this *reading) reportGoErrors(pkg *packages.Package) {
+	if this.reportedPackages[pkg] {
+		return
+	}
+	this.reportedPackages[pkg] = true
 	this.result.Errors = append(this.result.Errors, packageToGoErrors(pkg, this.project.Dir)...)
+}
+
+func (this *reading) reportGoErrorsOf(pkg *types.Package) (hasErrors bool) {
+	if pkg == nil {
+		return false
+	}
+	loaded, found := this.loaded.byPath[pkg.Path()]
+	if !found || len(loaded.Errors) == 0 {
+		return false
+	}
+	this.reportGoErrors(loaded)
+	return true
+}
+
+// A file whose import block does not parse lists no import, but its syntax keeps the import spec.
+func packageImportsSDK(pkg *packages.Package) bool {
+	if _, found := pkg.Imports[sdkPath]; found {
+		return true
+	}
+	for _, file := range pkg.Syntax {
+		for _, spec := range file.Imports {
+			if strings.Trim(spec.Path.Value, "\"`") == sdkPath {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (this *reading) schemaName(name *types.TypeName) string {

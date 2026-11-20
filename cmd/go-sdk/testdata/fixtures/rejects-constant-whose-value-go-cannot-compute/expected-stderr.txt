@@ -1,0 +1,1 @@
+api.go:10 "routes.Pets" has no value Go can compute: run go build and fix the errors it reports

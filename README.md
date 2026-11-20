@@ -21,7 +21,7 @@ go mod tidy
 
 `go mod tidy` keeps `github.com/bidirekt/go-sdk` only when your code imports the package, so run it once your first declaration is written.
 
-A module that only imports the package, such as a shared module that holds the schemas and enums of several services, gets `github.com/bidirekt/go-sdk` in `require` and nothing else: its `go` line stays as it is. Only the module that installs the tool gets the changes below.
+A module that only imports the package, such as a shared module that holds the schemas and enums of several services, gets `github.com/bidirekt/go-sdk` in `require` and nothing else: its `go` line stays as it is, as long as it requires no module that installs the tool. A module that requires one, such as a service that imports the module of another service, gets from it the `go 1.26.0` line and the `golang.org/x/tools`, `golang.org/x/mod` and `golang.org/x/sync` versions of the generator when it adds or updates that requirement.
 
 Installing the tool changes your `go.mod`:
 
@@ -31,6 +31,8 @@ Installing the tool changes your `go.mod`:
 - the `golang.org/x` modules your app already uses, such as `golang.org/x/net`, `golang.org/x/sys`, `golang.org/x/text`, `golang.org/x/crypto` or `golang.org/x/sync`, move up to the versions `golang.org/x/tools` needs, as Go's minimal version selection does, and so can modules outside `golang.org/x` that it requires, such as `github.com/google/go-cmp`. `go mod tidy` then adds their new versions to `go.sum`; without it, `go build` can stop with `missing go.sum entry`;
 - your app's other tools built from `golang.org/x/tools`, such as `stringer` or `goimports`, move to the `golang.org/x/tools` version the generator needs, and what they write can change;
 - the `go` line also sets the runtime defaults (`GODEBUG`) built into your app, so after the bump its next build behaves like a Go 1.26 app: for example, `GOMAXPROCS` follows the container's CPU limit, and TLS 1.2 rejects SHA-1 signatures. To keep the old defaults, add a `godebug default=go1.XX` line to `go.mod` with the `go` version you had before, such as `godebug default=go1.24`. It restores the runtime defaults only, not the language: an app coming from Go 1.21 or older gets a new loop variable on each iteration of a `for` loop all the same.
+
+In a `go.work` workspace, installing the tool in one module also raises the `go` line of `go.work` to `1.26.0`, without a notice. Every module of the workspace then builds with the `golang.org/x` versions `golang.org/x/tools` needs and with the Go 1.26 runtime defaults, even one whose `go.mod` keeps an older `go` line. There the `godebug default=go1.XX` line goes in `go.work`: Go ignores it in a `go.mod` of the workspace.
 
 The `bidirekt` package your code imports holds the declarations of the contract. They do nothing at runtime: each returns an empty value, and `generate` reads the source instead of running it.
 
