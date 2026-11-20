@@ -1,0 +1,2 @@
+pet.go:4 field "name" is declared more than once in schema "Pet": give each field a distinct name
+pet.go:5 field "name" is declared more than once in schema "Pet": give each field a distinct name

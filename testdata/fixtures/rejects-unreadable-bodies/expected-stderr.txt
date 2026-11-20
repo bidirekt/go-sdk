@@ -1,0 +1,8 @@
+routes.go:12 cannot translate a body of type "string": declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:16 cannot translate a body of type "int": declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:20 cannot translate a body of type "any": declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:24 cannot translate a body of type "map[string]any": declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:28 an anonymous struct body has no schema name: name it with bidirekt.Named("<name>")
+routes.go:34 a map body has no schema name: name it with bidirekt.Named("<name>")
+routes.go:38 cannot translate struct "Owner": mark the fields of the contract with bidirekt:"field"
+routes.go:42 the list body "[]string{}" has items without a schema name to name it after: name it with bidirekt.Named("<name>")

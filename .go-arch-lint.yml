@@ -4,7 +4,44 @@ allow:
   depOnAnyVendor: false
 exclude:
   - testdata
+vendors:
+  tools:
+    in: golang.org/x/tools/**
+  testify:
+    in: github.com/stretchr/testify/**
 components:
+  bidirekt:
+    in: .
   cmd:
     in: cmd/**
-deps: {}
+  command:
+    in: internal/command
+  reader:
+    in: internal/reader
+  model:
+    in: internal/model
+  writer:
+    in: internal/writer
+  tests:
+    in: tests/**
+deps:
+  cmd:
+    mayDependOn:
+      - command
+  command:
+    mayDependOn:
+      - reader
+      - model
+      - writer
+  reader:
+    mayDependOn:
+      - model
+    canUse:
+      - tools
+  writer:
+    mayDependOn:
+      - model
+  tests:
+    anyProjectDeps: true
+    canUse:
+      - testify

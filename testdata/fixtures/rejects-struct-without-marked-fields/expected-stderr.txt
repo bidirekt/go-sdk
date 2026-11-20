@@ -1,0 +1,3 @@
+pet.go:12 cannot translate struct "Owner": mark the fields of the contract with bidirekt:"field"
+pet.go:13 cannot translate struct "Owner": mark the fields of the contract with bidirekt:"field"
+pet.go:14 cannot translate struct "URL" of package "net/url": declare a struct of your own with the fields of the contract marked with bidirekt:"field"

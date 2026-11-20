@@ -1,0 +1,2 @@
+billing/pet.go:3 schema name "Pet" is declared more than once: rename one with bidirekt.Schema(..., bidirekt.Named("<name>"))
+shop/pet.go:3 schema name "Pet" is declared more than once: rename one with bidirekt.Schema(..., bidirekt.Named("<name>"))

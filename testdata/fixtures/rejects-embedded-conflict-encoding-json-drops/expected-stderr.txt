@@ -1,0 +1,2 @@
+pet.go:4 json name "id" is written by two fields at the same depth of embedded structs, so encoding/json writes neither: give one of them another json name
+pet.go:8 json name "id" is written by two fields at the same depth of embedded structs, so encoding/json writes neither: give one of them another json name

@@ -1,0 +1,3 @@
+pet.go:4 the bidirekt tag must start with "field": write bidirekt:"field" followed by its options
+pet.go:5 the bidirekt tag must start with "field": write bidirekt:"field" followed by its options
+pet.go:6 the bidirekt tag must start with "field": write bidirekt:"field" followed by its options

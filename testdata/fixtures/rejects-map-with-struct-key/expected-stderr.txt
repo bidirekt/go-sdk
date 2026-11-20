@@ -1,0 +1,1 @@
+pet.go:9 cannot translate "map[Owner]string" to a contract type: a map key must be a string, or declare it with bidirekt:"field type=map values=<type>"

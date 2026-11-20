@@ -1,0 +1,2 @@
+pets.go:7 method "get" must be uppercase: write "GET"
+pets.go:11 method "Post" must be uppercase: write "POST"

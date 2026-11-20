@@ -1,0 +1,1 @@
+pets/pet.go:7 cannot use "many" (untyped string constant) as int value in variable declaration

@@ -1,0 +1,5 @@
+status.go:22 value "available" is declared more than once in bidirekt.Enum: keep one
+status.go:24 a value of bidirekt.Enum is empty: write the value or remove it
+status.go:26 bidirekt.Enum of "PetColor" has no values: write the values of the enum as its arguments
+status.go:28 "mood" cannot be read without running the code: write a literal or a constant
+status.go:30 values of bidirekt.Enum have no named type: declare a string type, as type PetStatus string, and give the values that type

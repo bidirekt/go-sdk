@@ -1,0 +1,4 @@
+order.go:34 the union= lists "Boleto", which does not implement "Payment": add the methods of "Payment" to "Boleto" or to its pointer
+order.go:35 the union= lists "PetStatus", which is not a struct: list structs with fields marked with bidirekt:"field"
+order.go:36 the union= lists "Card" more than once: keep one key for it
+order.go:37 cannot place the union= in "string": write it on a field whose type, items or values are an interface

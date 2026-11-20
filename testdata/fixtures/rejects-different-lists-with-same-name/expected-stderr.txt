@@ -1,0 +1,4 @@
+routes.go:12 lists named "PetList" differ: give each list a distinct name
+routes.go:16 lists named "PetList" differ: give each list a distinct name
+routes.go:20 lists named "Residents" differ: give each list a distinct name
+routes.go:24 lists named "Residents" differ: give each list a distinct name

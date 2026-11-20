@@ -1,0 +1,3 @@
+pet.go:4 cannot read "nmae=petId" in the bidirekt tag: write "<key>=<value>" with key name, type, items, values, optional, nullable, description or union
+pet.go:5 cannot read "nullable" in the bidirekt tag: write "<key>=<value>" with key name, type, items, values, optional, nullable, description or union
+pet.go:6 cannot read "integer" in the bidirekt tag: write "<key>=<value>" with key name, type, items, values, optional, nullable, description or union

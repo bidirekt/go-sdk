@@ -1,0 +1,4 @@
+pet.go:4 cannot read "name='petName'" in the bidirekt tag: remove the quotes, only description='<text>' takes them
+pet.go:5 cannot read "type={string}" in the bidirekt tag: remove the braces, only union={<key>: <schema>, ...} takes them
+pet.go:6 cannot read "description=\"Shown\"" in the bidirekt tag: write description='<text>'
+pet.go:7 cannot read "name=\"petName\"" in the bidirekt tag: remove the quotes, only description='<text>' takes them

@@ -1,0 +1,2 @@
+status.go:14 bidirekt.Enum is declared more than once for "PetStatus": keep one
+status.go:16 bidirekt.Enum is declared more than once for "PetStatus": keep one
