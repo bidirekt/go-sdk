@@ -43,7 +43,7 @@ var _ = bidirekt.Provides(http.MethodPost, "/pets/*/adoptions",
 	bidirekt.Response(http.StatusCreated, nil),
 )
 
-var _ = bidirekt.Provides(http.MethodDelete, "/pets/*",
+var _ = bidirekt.Provides(http.MethodPatch, "/pets/*",
 	bidirekt.Request(nil),
 	bidirekt.Response(http.StatusNoContent, nil),
 )

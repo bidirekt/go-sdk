@@ -92,3 +92,15 @@ jobs:
       - run: go run github.com/fe3dback/go-arch-lint@v1.18.0 check --project-path .
       - run: go run github.com/fe3dback/go-arch-lint@v1.18.0 check --project-path .
         working-directory: cmd/go-sdk
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: git ls-files -z '*.sh' '.githooks/*' | xargs -0 shellcheck
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: testdata/e2e/run.sh
