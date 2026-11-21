@@ -1,8 +1,8 @@
 #!/bin/sh
-# Runs every scenario of this folder, or the ones named as arguments, as a developer would: installs the generator,
-# runs generate and generate --check on the scenario's Go, then bidirekt validate and publish of the generated contract
-# on a throwaway broker; a mistake applies its patch to a copy of another scenario first, and a flow scenario runs the
-# commands of its steps.txt instead. See README.md.
+# Runs every scenario of this folder, or the ones named as arguments, as a developer would: go mod download, generate
+# and generate --check on the Go of the scenario's .go-version, then bidirekt validate and publish of the generated
+# contract on a throwaway broker; a mistake applies its patch to a copy of another scenario first, and a flow scenario
+# runs the commands of its steps.txt instead. See README.md.
 # COMPOSE_PROJECT_NAME picks the compose project (default go-sdk-scenarios).
 set -eu
 
@@ -21,17 +21,19 @@ failed=0
 tmp=$(mktemp -d)
 # The broker's log tells why a broker step failed; a scenario that fails before the broker doesn't need it.
 broker_log=1
+# The down and the rm run even when a step before them fails, like the log on an output pipe that closed (| head).
 cleanup() {
+  set +e
   if [ "$failed" != 0 ] && [ "$broker_log" = 1 ]; then
-    compose logs broker
+    compose logs broker >&2
   fi
   # Without every profile, down keeps the volumes that only the services of a profile use.
   compose --profile '*' down -v --remove-orphans
   rm -rf "$tmp"
 }
 trap 'failed=$?; cleanup' EXIT
-# dash and busybox ash skip the EXIT trap when a signal kills the shell.
-trap 'exit 1' HUP INT TERM
+# dash and busybox ash skip the EXIT trap when a signal kills the shell, PIPE included when the output pipe closes.
+trap 'exit 1' HUP INT PIPE TERM
 
 newline='
 '
@@ -68,12 +70,30 @@ flow_services() {
   done
 }
 
+services=$(compose --profile '*' config --services)
+# Exits unless the file $1 of testdata/scenarios names a Go version that compose.yaml has a service for.
+check_version() {
+  if [ ! -f "$dir/$1" ]; then
+    echo "testdata/scenarios/$1 does not exist: write in it the Go version to run on, like 1.26" >&2
+    exit 1
+  fi
+  version=$(cat "$dir/$1")
+  if ! printf '%s\n' "$services" | grep -qxF "go-$version"; then
+    echo "testdata/scenarios/$1 says $version, but testdata/scenarios/compose.yaml has no service go-$version" >&2
+    exit 1
+  fi
+}
+
 for name in "$@"; do
   if [ -f "$dir/$name/steps.txt" ]; then
-    if [ -z "$(flow_services "$name")" ]; then
+    flow=$(flow_services "$name")
+    if [ -z "$flow" ]; then
       echo "testdata/scenarios/$name/steps.txt has no service to run in: no folder of testdata/scenarios/$name has a go.mod" >&2
       exit 1
     fi
+    for service in $flow; do
+      check_version "$name/$service/.go-version"
+    done
     continue
   fi
   base=$(patch_base "$name")
@@ -86,12 +106,11 @@ for name in "$@"; do
       echo "testdata/scenarios/$name/$base.patch names no scenario: testdata/scenarios/$base has no go.mod nor go.work" >&2
       exit 1
     fi
-    continue
-  fi
-  if [ ! -f "$dir/$name/go.mod" ] && [ ! -f "$dir/$name/go.work" ]; then
+  elif [ ! -f "$dir/$name/go.mod" ] && [ ! -f "$dir/$name/go.work" ]; then
     echo "no scenario \"$name\": testdata/scenarios/$name has no go.mod, go.work, .patch nor steps.txt" >&2
     exit 1
   fi
+  check_version "$name/.go-version"
 done
 
 compose up -d --wait
@@ -123,11 +142,11 @@ $output"
 }
 
 # Runs a command of steps.txt, $2, in the copy of the service $1, and appends what it prints and its exit code to the
-# transcript. bidirekt runs in the CLI's image, anything else with sh in the go service.
+# transcript. bidirekt runs in the CLI's image, anything else with sh in the service's Go.
 run_step() {
   case $2 in
     bidirekt | 'bidirekt '*) set -- --entrypoint sh -w "/work/$name/$1" bidirekt -c "exec 2>&1; $2" ;;
-    *) set -- -w "/sdk/testdata/scenarios/$name/$1" go sh -c "exec 2>&1; $2" ;;
+    *) set -- -w "/sdk/testdata/scenarios/$name/$1" "go-$(cat "$dir/$name/$1/.go-version")" sh -c "exec 2>&1; $2" ;;
   esac
   code=0
   # compose prints an empty line of its own when the command fails: only its messages go to the transcript.
@@ -141,19 +160,24 @@ run_step() {
   fi
 }
 
-# Runs the flow scenario $name: copies it, installs the generator in each service, then runs each command of
-# steps.txt, and compares the transcript with steps.txt.
+# Runs the flow scenario $name: copies it, runs go mod download and go mod tidy in each service, as generate.sh does,
+# then each command of steps.txt, and compares the transcript with steps.txt.
 run_flow() {
   copy=/sdk/testdata/scenarios/$name
-  # shellcheck disable=SC2016 # $1 and $2 are the arguments of sh -c, expanded in the go service
-  if ! output=$(compose run -T go sh -c 'rm -rf "$1" && cp -R "/scenarios/$2" "$1"' sh "$copy" "$name" 2>&1 </dev/null); then
-    fail "$name" "copying the scenario failed:
-$output"
-    return
-  fi
+  copied=0
   for service in $(flow_services "$name"); do
-    if ! output=$(compose run -T -w "$copy/$service" go sh /scenarios/install.sh 2>&1 </dev/null); then
-      fail "$name" "installing the generator in $service failed:
+    go=go-$(cat "$dir/$name/$service/.go-version")
+    if [ "$copied" = 0 ]; then
+      # shellcheck disable=SC2016 # $1 and $2 are the arguments of sh -c, expanded in the go service
+      if ! output=$(compose run -T "$go" sh -c 'rm -rf "$1" && cp -R "/scenarios/$2" "$1"' sh "$copy" "$name" 2>&1 </dev/null); then
+        fail "$name" "copying the scenario failed:
+$output"
+        return
+      fi
+      copied=1
+    fi
+    if ! output=$(compose run -T -w "$copy/$service" "$go" sh -c 'go mod download && go mod tidy' 2>&1 </dev/null); then
+      fail "$name" "go mod download and go mod tidy in $service failed:
 $output"
       return
     fi
@@ -197,7 +221,7 @@ for name in "$@"; do
     continue
   fi
 
-  if ! contract=$(compose run -T go sh /scenarios/generate.sh "$name" 2>&1 </dev/null); then
+  if ! contract=$(compose run -T "go-$(cat "$dir/$name/.go-version")" sh /scenarios/generate.sh "$name" 2>&1 </dev/null); then
     fail "$name" "$contract"
     continue
   fi

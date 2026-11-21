@@ -1,7 +1,7 @@
 #!/bin/sh
-# Runs in the go service of compose.yaml for the scenario named by $1: copies the project, installs the generator,
-# applies the scenario's patch when it is a mistake on another scenario, runs generate and generate --check in the
-# copy as a developer would, and compares the results with the scenario's.
+# Runs in a go-<version> service of compose.yaml for the scenario named by $1: copies the project, downloads its
+# dependencies, applies the scenario's patch when it is a mistake on another scenario, runs generate and generate
+# --check in the copy as a developer would, and compares the results with the scenario's.
 # On success prints the path of the generated contract inside the copy, or nothing when the scenario expects exit 1.
 # On failure prints why and exits 1.
 set -eu
@@ -46,9 +46,10 @@ done
 contract=${folder#./}/contracts/generated.yaml
 contract=${contract#./}
 
-if ! (cd "$folder" && sh /scenarios/install.sh) >"$results/install" 2>&1; then
-  echo "installing the generator in $folder failed:"
-  cat "$results/install"
+# go mod tidy changes nothing on the committed go.mod and go.sum, until the generator's own dependencies move up.
+if ! (cd "$folder" && go mod download && go mod tidy) >"$results/mod" 2>&1; then
+  echo "go mod download and go mod tidy in $folder failed:"
+  cat "$results/mod"
   exit 1
 fi
 
