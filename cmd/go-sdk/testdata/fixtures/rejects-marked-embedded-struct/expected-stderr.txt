@@ -1,0 +1,1 @@
+pet.go:10 embedded struct "Timestamps" is not a field of its own, its marked fields are promoted: remove its bidirekt tag, or give it a json name to make it a field

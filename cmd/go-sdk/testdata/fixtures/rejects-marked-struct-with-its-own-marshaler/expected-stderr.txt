@@ -1,0 +1,2 @@
+money.go:3 struct "Money" has its own MarshalJSON, so encoding/json never writes its marked fields: remove bidirekt:"field" from its fields, or remove the method
+money.go:11 struct "Code" has its own MarshalText, so encoding/json never writes its marked fields: remove bidirekt:"field" from its fields, or remove the method

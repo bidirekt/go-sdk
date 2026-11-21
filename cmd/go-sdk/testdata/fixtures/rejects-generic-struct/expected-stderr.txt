@@ -1,0 +1,2 @@
+pet.go:3 cannot translate generic type "Page": declare a struct without type parameters, with its fields marked with bidirekt:"field", and use it as the type
+pet.go:13 cannot translate generic type "Page[Pet]": declare a struct without type parameters, with its fields marked with bidirekt:"field", and use it as the type

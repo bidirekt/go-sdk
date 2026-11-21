@@ -1,0 +1,1 @@
+pet.go:5 cannot translate an anonymous struct without marked fields: mark the fields of the contract with bidirekt:"field"

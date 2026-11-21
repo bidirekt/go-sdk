@@ -1,0 +1,2 @@
+pet.go:5 field "name" is not exported, so encoding/json does not write it: export it or remove the bidirekt tag
+pet.go:6 field "CreatedBy" has json:"-", so encoding/json does not write it: remove json:"-" or the bidirekt tag

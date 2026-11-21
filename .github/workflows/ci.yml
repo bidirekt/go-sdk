@@ -15,10 +15,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: cmd/go-sdk/go.mod
           cache: true
+          cache-dependency-path: cmd/go-sdk/go.sum
       - run: test -z "$(find . -name '*.go' ! -path '*/testdata/*' -exec gofmt -l {} +)"
       - run: go vet ./...
+      - run: go vet ./...
+        working-directory: cmd/go-sdk
 
   lint:
     runs-on: ubuntu-latest
@@ -26,11 +29,43 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: cmd/go-sdk/go.mod
           cache: true
+          cache-dependency-path: cmd/go-sdk/go.sum
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.14.0
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.14.0
+          working-directory: cmd/go-sdk
+
+  go-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        go: ["1.26", "1.27"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go }}.x
+          check-latest: true
+          cache: true
+          cache-dependency-path: cmd/go-sdk/go.sum
+      - run: go test -count=1 ./...
+      - run: go test -count=1 ./...
+        working-directory: cmd/go-sdk
+
+  test:
+    needs: go-test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULT: ${{ needs.go-test.result }}
+        run: test "$RESULT" = success
 
   govulncheck:
     runs-on: ubuntu-latest
@@ -38,9 +73,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: cmd/go-sdk/go.mod
           cache: true
+          cache-dependency-path: cmd/go-sdk/go.sum
       - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        working-directory: cmd/go-sdk
 
   arch-lint:
     runs-on: ubuntu-latest
@@ -48,6 +86,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
+          go-version-file: cmd/go-sdk/go.mod
           cache: true
+          cache-dependency-path: cmd/go-sdk/go.sum
       - run: go run github.com/fe3dback/go-arch-lint@v1.18.0 check --project-path .
+      - run: go run github.com/fe3dback/go-arch-lint@v1.18.0 check --project-path .
+        working-directory: cmd/go-sdk

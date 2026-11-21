@@ -1,0 +1,2 @@
+pet.go:11 bidirekt.Schema is declared more than once for "Pet": keep one
+pet.go:13 bidirekt.Schema is declared more than once for "Pet": keep one

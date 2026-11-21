@@ -1,0 +1,16 @@
+pet.go:8 cannot read "optional=yes" in the bidirekt tag: write "optional=true" or "optional=false"
+pet.go:9 cannot read "nullable=1" in the bidirekt tag: write "nullable=true" or "nullable=false"
+pet.go:10 cannot read "name=" in the bidirekt tag: write "name=<name>"
+pet.go:11 cannot read "type=[]Owner" in the bidirekt tag: write type=array items=Owner
+pet.go:12 cannot read "type=map[string]Owner" in the bidirekt tag: write type=map values=Owner
+pet.go:13 cannot read "items=array" in the bidirekt tag: write "items=" followed by string, integer, float, number, boolean or a schema name
+pet.go:14 cannot read "values=map<string>" in the bidirekt tag: write "values=" followed by string, integer, float, number, boolean or a schema name
+pet.go:15 type=array needs "items=" in the bidirekt tag: write the type of its items, as in items=Pet
+pet.go:16 type=map needs "values=" in the bidirekt tag: write the type of its values, as in values=Pet
+pet.go:17 "items=" is declared without type=array in the bidirekt tag: write type=array or remove "items="
+pet.go:18 "values=" is declared without type=map in the bidirekt tag: write type=map or remove "values="
+pet.go:19 declare either "type=" or "union=" in the bidirekt tag, not both
+pet.go:20 cannot read "union=Owner" in the bidirekt tag: write "union={<key>: <schema>, ...}"
+pet.go:21 cannot read "union={a: Owner, a: Owner}" in the bidirekt tag: write "union={<key>: <schema>, ...}"
+pet.go:22 cannot read "union={a Owner}" in the bidirekt tag: write "union={<key>: <schema>, ...}"
+pet.go:23 cannot read "description='Not closed" in the bidirekt tag: write description='<text>'

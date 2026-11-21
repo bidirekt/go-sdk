@@ -1,0 +1,2 @@
+clients.go:24 request of "POST /charges" consumed from "payments_api" is declared as "NewCharge" and "RetriedCharge": declare the same request in every bidirekt.Consumes
+clients.go:29 request of "POST /charges" consumed from "payments_api" is declared as "NewCharge" and "RetriedCharge": declare the same request in every bidirekt.Consumes

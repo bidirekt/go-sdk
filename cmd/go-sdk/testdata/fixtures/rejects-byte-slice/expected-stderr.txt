@@ -1,0 +1,2 @@
+pet.go:7 cannot translate "[]byte" to a contract type: declare it with bidirekt:"field type=<type>"
+pet.go:8 cannot translate "Image" to a contract type: declare it with bidirekt:"field type=<type>"

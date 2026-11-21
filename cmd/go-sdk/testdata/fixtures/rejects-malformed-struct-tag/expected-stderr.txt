@@ -1,0 +1,5 @@
+pet.go:5 cannot read the struct tag `json:"b",bidirekt:"field"`: write each key as key:"value", separated by spaces, as in `json:"name" bidirekt:"field"`
+pet.go:6 cannot read the struct tag `json: "d" bidirekt:"field"`: write each key as key:"value", separated by spaces, as in `json:"name" bidirekt:"field"`
+pet.go:8 cannot read the struct tag `json:"owner" bidirekt:"field
+description='Who'"`: write each key as key:"value", separated by spaces, as in `json:"name" bidirekt:"field"`
+pet.go:10 cannot read the struct tag `json:"notes" bidirekt:"field description='a\qb'"`: write each key as key:"value", separated by spaces, as in `json:"name" bidirekt:"field"`

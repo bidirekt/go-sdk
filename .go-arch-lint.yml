@@ -3,8 +3,13 @@ workdir: .
 allow:
   depOnAnyVendor: false
 exclude:
-  - testdata
+  - cmd
 components:
-  cmd:
-    in: cmd/**
-deps: {}
+  bidirekt:
+    in: .
+  tests:
+    in: tests/**
+deps:
+  tests:
+    mayDependOn:
+      - bidirekt

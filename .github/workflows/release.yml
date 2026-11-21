@@ -12,6 +12,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check that the generator's tag points at the same commit
+        run: |
+          tag="cmd/go-sdk/$GITHUB_REF_NAME"
+          git fetch --depth=1 origin "refs/tags/$tag:refs/tags/$tag"
+          test "$(git rev-parse "$tag^{commit}")" = "$(git rev-parse HEAD)"
       - name: Create the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -21,5 +26,7 @@ jobs:
             flags+=(--prerelease)
           fi
           gh release create "$GITHUB_REF_NAME" "${flags[@]}"
-      - name: Request the version from the Go proxy, so it shows on pkg.go.dev
-        run: curl -fsS "https://proxy.golang.org/github.com/bidirekt/go-sdk/@v/$GITHUB_REF_NAME.info"
+      - name: Request both versions from the Go proxy, so they show on pkg.go.dev
+        run: |
+          curl -fsS "https://proxy.golang.org/github.com/bidirekt/go-sdk/@v/$GITHUB_REF_NAME.info"
+          curl -fsS "https://proxy.golang.org/github.com/bidirekt/go-sdk/cmd/go-sdk/@v/$GITHUB_REF_NAME.info"

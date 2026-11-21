@@ -1,0 +1,13 @@
+routes.go:34 cannot translate a body of type "string": declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:38 cannot translate a body of type "int": declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:42 cannot translate a body of type "any": declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:46 cannot translate a body of type "map[string]any": declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:50 an anonymous struct body has no schema name: name it with bidirekt.Named("<name>")
+routes.go:56 a map body has no schema name: name it with bidirekt.Named("<name>")
+routes.go:60 cannot translate struct "Owner": mark the fields of the contract with bidirekt:"field"
+routes.go:64 the list body "[]string{}" has items without a schema name to name it after: name it with bidirekt.Named("<name>")
+routes.go:68 cannot translate a body of type "Price": encoding/json writes it with its MarshalJSON, so declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:72 cannot translate a body of type "Label": encoding/json writes it with its MarshalText, so declare a struct with the fields of the contract marked with bidirekt:"field" and use it as the body
+routes.go:76 cannot translate "time.Time" in a body: encoding/json writes it with its MarshalJSON, so declare a struct with the fields of the contract marked with bidirekt:"field" and use it in the body
+routes.go:80 cannot translate "Price" in a body: encoding/json writes it with its MarshalJSON, so declare a struct with the fields of the contract marked with bidirekt:"field" and use it in the body
+routes.go:84 cannot translate "map[int]Pet" in a body: a map key must be a string, so give the map a string key type

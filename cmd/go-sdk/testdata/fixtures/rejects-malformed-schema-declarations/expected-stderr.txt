@@ -1,0 +1,6 @@
+pet.go:17 bidirekt.Schema needs a name: write bidirekt.Schema(Pet{}, bidirekt.Named("<name>"))
+pet.go:19 bidirekt.Schema is on "Owner", which is not a schema nor an enum: put it on a struct with fields marked with bidirekt:"field" or on a type declared with bidirekt.Enum
+pet.go:21 bidirekt.Schema is on "Breed", which is not a schema nor an enum: put it on a struct with fields marked with bidirekt:"field" or on a type declared with bidirekt.Enum
+pet.go:23 bidirekt.Schema is on "string", which is not a schema nor an enum: put it on a struct with fields marked with bidirekt:"field" or on a type declared with bidirekt.Enum
+pet.go:31 bidirekt.Schema is on "Pets", which is not a schema nor an enum: put it on a struct with fields marked with bidirekt:"field" or on a type declared with bidirekt.Enum
+pet.go:33 bidirekt.Schema is on "PetsByName", which is not a schema nor an enum: put it on a struct with fields marked with bidirekt:"field" or on a type declared with bidirekt.Enum

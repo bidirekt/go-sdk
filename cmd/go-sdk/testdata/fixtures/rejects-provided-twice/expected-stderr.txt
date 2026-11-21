@@ -1,0 +1,2 @@
+routes.go:7 "GET /pets/*" is provided by more than one bidirekt.Provides: declare each method and path in one bidirekt.Provides
+routes.go:11 "GET /pets/*" is provided by more than one bidirekt.Provides: declare each method and path in one bidirekt.Provides

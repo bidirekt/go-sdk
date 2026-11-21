@@ -1,0 +1,1 @@
+"contracts/generated.yaml" does not exist: run generate without --check

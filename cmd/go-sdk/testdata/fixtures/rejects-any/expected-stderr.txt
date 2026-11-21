@@ -1,0 +1,2 @@
+pet.go:5 cannot translate "any" to a contract type: declare it with bidirekt:"field type=<type>"
+pet.go:6 cannot translate "interface{}" to a contract type: declare it with bidirekt:"field type=<type>"

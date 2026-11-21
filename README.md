@@ -4,13 +4,552 @@
 
 In Bidirekt, each side of an integration declares in a contract file what it provides and what it consumes. This SDK writes that file from the code of a service on Go 1.26 or later: you declare in Go code what the service provides and consumes, mark the fields of its schemas with the `bidirekt` struct tag, run `go tool go-sdk generate`, and get `contracts/generated.yaml`, ready for `bidirekt validate` and `bidirekt publish`. It is the service's only contract file: once a service adopts the SDK, every resource and schema it provides or consumes is declared in its code.
 
+## Installation
+
+The SDK is two Go modules in this repository:
+
+- `github.com/bidirekt/go-sdk`, the `bidirekt` package your code imports to declare the contract. It imports nothing, requires no module and builds with Go 1.18 or later.
+- `github.com/bidirekt/go-sdk/cmd/go-sdk`, the `generate` command, which needs Go 1.26 or later. Your app installs it as a tool.
+
+In the module of your service, get the package and add the generator as a tool, then tidy the module:
+
+```sh
+go get github.com/bidirekt/go-sdk
+go get -tool github.com/bidirekt/go-sdk/cmd/go-sdk
+go mod tidy
+```
+
+`go mod tidy` keeps `github.com/bidirekt/go-sdk` only when your code imports the package, so run it once your first declaration is written.
+
+A module that only imports the package, such as a shared module that holds the schemas and enums of several services, gets `github.com/bidirekt/go-sdk` in `require` and nothing else: its `go` line stays as it is, as long as it requires no module that installs the tool. A module that requires one, such as a service that imports the module of another service, gets from it the `go 1.26.0` line and the `golang.org/x/tools`, `golang.org/x/mod` and `golang.org/x/sync` versions of the generator when it adds or updates that requirement.
+
+Installing the tool changes your `go.mod`:
+
+- a `tool github.com/bidirekt/go-sdk/cmd/go-sdk` line, `github.com/bidirekt/go-sdk` in `require`, and `github.com/bidirekt/go-sdk/cmd/go-sdk` as `// indirect`;
+- `golang.org/x/tools`, `golang.org/x/mod` and `golang.org/x/sync` as `// indirect`, which the generator uses to read your code. They never enter your app's binary: only the `bidirekt` package does, and it imports nothing;
+- the `go` line goes up to `1.26.0` if it is older, and a `toolchain` line older than `go1.26.0` is removed (`go: removed toolchain go1.24.5`). A CI that installs Go from `go.mod`, such as `actions/setup-go` with `go-version-file`, then gets exactly Go 1.26.0: add back a `toolchain go1.26.N` line with the latest patch;
+- the `golang.org/x` modules your app already uses, such as `golang.org/x/net`, `golang.org/x/sys`, `golang.org/x/text`, `golang.org/x/crypto` or `golang.org/x/sync`, move up to the versions `golang.org/x/tools` needs, as Go's minimal version selection does, and so can modules outside `golang.org/x` that it requires, such as `github.com/google/go-cmp`. `go mod tidy` then adds their new versions to `go.sum`; without it, `go build` can stop with `missing go.sum entry`;
+- your app's other tools built from `golang.org/x/tools`, such as `stringer` or `goimports`, move to the `golang.org/x/tools` version the generator needs, and what they write can change;
+- the `go` line also sets the runtime defaults (`GODEBUG`) built into your app, so after the bump its next build behaves like a Go 1.26 app: for example, `GOMAXPROCS` follows the container's CPU limit, and TLS 1.2 rejects SHA-1 signatures. To keep the old defaults, add a `godebug default=go1.XX` line to `go.mod` with the `go` version you had before, such as `godebug default=go1.24`. It restores the runtime defaults only, not the language: an app coming from Go 1.21 or older gets a new loop variable on each iteration of a `for` loop all the same.
+
+In a `go.work` workspace, installing the tool in one module also raises the `go` line of `go.work` to `1.26.0`, without a notice. Every module of the workspace then builds with the `golang.org/x` versions `golang.org/x/tools` needs and with the Go 1.26 runtime defaults, even one whose `go.mod` keeps an older `go` line. There the `godebug default=go1.XX` line goes in `go.work`: Go ignores it in a `go.mod` of the workspace. `go work sync` then writes the `go 1.26.0` line and the newer `golang.org/x` versions into the `go.mod` of the other modules of the workspace.
+
+In an app that vendors its dependencies, `go build` and `generate` stop with `inconsistent vendoring` after the install until you run `go mod vendor`. Since Go 1.24 counts the packages of a `tool` line as dependencies of the module, `vendor/` then also holds the generator and the `golang.org/x/tools`, `golang.org/x/mod` and `golang.org/x/sync` packages it uses.
+
+The `bidirekt` package your code imports holds the declarations of the contract. They do nothing at runtime: each returns an empty value, and `generate` reads the source instead of running it.
+
+## Quickstart
+
+`petstore_go` is a `net/http` service in the module `example.com/petstore`. It provides `GET /pets/*` and `POST /pets`, and consumes `GET /ratings/*` from `petstore_reviews`. A struct with a field marked `bidirekt:"field"` is a schema, and only its marked fields are in the contract. `Pet` uses each kind of field:
+
+`pets/pet.go`
+```go
+package pets
+
+import (
+	"github.com/bidirekt/go-sdk"
+)
+
+type PetStatus string
+
+const (
+	PetStatusAvailable PetStatus = "available"
+	PetStatusAdopted   PetStatus = "adopted"
+)
+
+var _ = bidirekt.Enum(PetStatusAvailable, PetStatusAdopted)
+
+type Owner struct {
+	Name string `json:"name" bidirekt:"field"`
+}
+
+type Pet struct {
+	ID        int64             `json:"id" bidirekt:"field"`
+	Name      string            `json:"name" bidirekt:"field"`
+	Status    PetStatus         `json:"status" bidirekt:"field"`
+	Owner     *Owner            `json:"owner" bidirekt:"field"`
+	Tags      []string          `json:"tags" bidirekt:"field"`
+	Notes     map[string]string `json:"notes" bidirekt:"field"`
+	Weight    float64           `json:"weight" bidirekt:"field description='In kilograms'"`
+	Nickname  string            `json:"nickname,omitempty" bidirekt:"field"`
+	CreatedBy string            `json:"-"`
+}
+
+type NewPet struct {
+	Name string `json:"name" bidirekt:"field"`
+}
+```
+
+Each resource is declared with `bidirekt.Provides` or `bidirekt.Consumes`, next to the handler that serves or calls it:
+
+`main.go`
+```go
+package main
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"example.com/petstore/pets"
+	"github.com/bidirekt/go-sdk"
+)
+
+type Rating struct {
+	Stars int `json:"stars" bidirekt:"field"`
+}
+
+var _ = bidirekt.Provides(http.MethodGet, "/pets/*",
+	bidirekt.Response(http.StatusOK, pets.Pet{}),
+	bidirekt.Response(http.StatusNotFound, nil),
+)
+
+func getPet(w http.ResponseWriter, r *http.Request) {
+	pet, found := store[r.PathValue("id")]
+	if !found {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	json.NewEncoder(w).Encode(pet)
+}
+
+var _ = bidirekt.Provides(http.MethodPost, "/pets",
+	bidirekt.Request(pets.NewPet{}),
+	bidirekt.Response(http.StatusCreated, pets.Pet{}),
+	bidirekt.Response(http.StatusBadRequest, nil),
+)
+
+func createPet(w http.ResponseWriter, r *http.Request) {
+	var request pets.NewPet
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	pet := pets.Pet{Name: request.Name, Status: pets.PetStatusAvailable}
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(pet)
+}
+
+var _ = bidirekt.Consumes("petstore_reviews", http.MethodGet, "/ratings/*",
+	bidirekt.Response(http.StatusOK, Rating{}),
+	bidirekt.Response(http.StatusNotFound, nil),
+)
+
+var store = map[string]pets.Pet{}
+
+func main() {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /pets/{id}", getPet)
+	mux.HandleFunc("POST /pets", createPet)
+	http.ListenAndServe(":8080", mux)
+}
+```
+
+Run `generate` in the project folder:
+
+```sh
+go tool go-sdk generate
+```
+
+It writes `contracts/generated.yaml`:
+
+```yaml
+# Generated by github.com/bidirekt/go-sdk. Do not edit.
+provides:
+  rest:
+    /pets:
+      post:
+        request: NewPet
+        responses:
+          201: Pet
+          400: ~
+    /pets/*:
+      get:
+        responses:
+          200: Pet
+          404: ~
+consumes:
+  petstore_reviews:
+    rest:
+      /ratings/*:
+        get:
+          responses:
+            200: Rating
+            404: ~
+schemas:
+  NewPet:
+    type: object
+    properties:
+      name:
+        type: string
+  Owner:
+    type: object
+    properties:
+      name:
+        type: string
+  Pet:
+    type: object
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      status:
+        ref: PetStatus
+      owner:
+        ref: Owner
+        nullable: true
+      tags:
+        type: array
+        items:
+          type: string
+      notes:
+        type: map
+        values:
+          type: string
+      weight:
+        type: number
+        description: In kilograms
+      nickname:
+        type: string
+        optional: true
+  PetStatus:
+    type: enum
+    members: ["available", "adopted"]
+  Rating:
+    type: object
+    properties:
+      stars:
+        type: integer
+```
+
+## Unions, embedded and anonymous structs
+
+A field of an interface type is a union when the tag names the schema of each member; a struct embedded without a json name brings its marked fields to the place it is embedded; an anonymous struct is written inline, and as a body it takes a name with `bidirekt.Named`:
+
+`orders.go`
+```go
+package orders
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/bidirekt/go-sdk"
+)
+
+type Timestamps struct {
+	CreatedAt string `json:"createdAt" bidirekt:"field"`
+	UpdatedAt string `json:"updatedAt" bidirekt:"field"`
+}
+
+type Payment interface{ payment() }
+
+type Card struct {
+	Last4 string `json:"last4" bidirekt:"field"`
+}
+
+type Pix struct {
+	Key string `json:"key" bidirekt:"field"`
+}
+
+func (Card) payment() {}
+func (*Pix) payment() {}
+
+type Order struct {
+	ID int64 `json:"id" bidirekt:"field"`
+	Timestamps
+	Payment Payment `json:"payment" bidirekt:"field union={card: Card, pix: Pix}"`
+	Address struct {
+		City string `json:"city" bidirekt:"field"`
+	} `json:"address" bidirekt:"field"`
+	PaidAt *time.Time `json:"paidAt,omitempty" bidirekt:"field type=string"`
+}
+
+var _ = bidirekt.Schema(Order{}, bidirekt.Named("OrderResponse"))
+
+var _ = bidirekt.Provides(http.MethodGet, "/orders",
+	bidirekt.Response(http.StatusOK, []Order{}, bidirekt.Named("Orders")),
+)
+
+var _ = bidirekt.Provides(http.MethodGet, "/orders/summary",
+	bidirekt.Response(http.StatusOK, struct {
+		Total int `json:"total" bidirekt:"field"`
+	}{}, bidirekt.Named("OrderSummary")),
+)
+```
+
+```yaml
+# Generated by github.com/bidirekt/go-sdk. Do not edit.
+provides:
+  rest:
+    /orders:
+      get:
+        responses:
+          200: Orders
+    /orders/summary:
+      get:
+        responses:
+          200: OrderSummary
+schemas:
+  Card:
+    type: object
+    properties:
+      last4:
+        type: string
+  OrderResponse:
+    type: object
+    properties:
+      id:
+        type: integer
+      createdAt:
+        type: string
+      updatedAt:
+        type: string
+      payment:
+        type: union
+        members:
+          card:
+            ref: Card
+          pix:
+            ref: Pix
+      address:
+        type: object
+        properties:
+          city:
+            type: string
+      paidAt:
+        type: string
+        optional: true
+  OrderSummary:
+    type: object
+    properties:
+      total:
+        type: integer
+  Orders:
+    type: array
+    items:
+      ref: OrderResponse
+  Pix:
+    type: object
+    properties:
+      key:
+        type: string
+```
+
+`Timestamps` appears only embedded, so it is part of `OrderResponse` and not a schema of its own. `bidirekt.Schema` renames `Order`, and the list keeps the name `bidirekt.Named` gives it.
+
+## When generate stops
+
+A mistake stops `generate` at its line, says how to fix it, and writes nothing:
+
+`pet.go`
+```go
+package pets
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/bidirekt/go-sdk"
+)
+
+type Pet struct {
+	Name      string    `json:"name" bidirekt:"field"`
+	BirthDate time.Time `json:"birthDate" bidirekt:"field"`
+	Weight    float64   `json:"weight" bidirekt:"field descripton='In kilograms'"`
+}
+
+var _ = bidirekt.Provides("get", "/pets/*",
+	bidirekt.Response(http.StatusOK, Pet{}),
+)
+```
+
+```text
+pet.go:12 cannot translate "time.Time" to a contract type: declare it with bidirekt:"field type=<type>"
+pet.go:13 cannot read "descripton='In kilograms'" in the bidirekt tag: write "<key>=<value>" with key name, type, items, values, optional, nullable, description or union
+pet.go:16 method "get" must be uppercase: write "GET"
+```
+
+## The `generate` command
+
+```sh
+go tool go-sdk generate
+go tool go-sdk generate --check
+go tool go-sdk generate --project apps/api --out apps/api/contracts/generated.yaml
+go tool go-sdk generate --project cmd/worker
+```
+
+- Without flags, the project is the current folder. `--project <folder>` reads another one, and writes to its folder. `generate` reads the packages of the project folder and below it, except `testdata/`, `vendor/` and hidden folders, in the module of the `go.mod` in that folder or the closest one above it; a `go.work` above it counts, as it does for `go build`. So a module with `cmd/api` and `cmd/worker` generates one contract per service.
+- `--out <file>` writes to another file, relative to the current folder. `contracts/` is created when it doesn't exist.
+- `--check` writes nothing and exits with 1 when the file on disk differs from what `generate` would write (`\r\n` counts as `\n`): `"contracts/generated.yaml" is out of date: run generate without --check`, or when it doesn't exist: `"contracts/generated.yaml" does not exist: run generate without --check`. Use it in CI.
+
+`contracts/generated.yaml` is the service's only contract file. Commit it with the code, regenerate it whenever a declaration or a marked type changes, and never edit it by hand: the next `generate` writes over it. From there the flow is the same as with a hand-written contract:
+
+```sh
+go tool go-sdk generate
+bidirekt validate contracts/generated.yaml
+bidirekt validate contracts/generated.yaml --participant petstore_go --environment production
+bidirekt publish contracts/generated.yaml --participant petstore_go --version 1.4.0
+bidirekt can-i-deploy petstore_go --version 1.4.0 --environment production
+# deploy
+bidirekt record-deployment petstore_go --version 1.4.0 --environment production
+```
+
+`validate` without `--participant` and `--environment` checks only the file; with them, it also compares the file with what is deployed in that environment.
+
+`generate` reads the source with the Go toolchain's package loader and never runs nor links your app, but it does compile: to get the types of your code, the loader compiles your packages and the packages they import, cgo included, into the build cache `go build` uses. A run on a cold cache costs about a `go build`; a run after a `go build` or another `generate` is fast. In an app with a `default.pgo` profile, the first run after a `go build` compiles again, because the loader builds without the profile; later runs are fast. Test files (`_test.go`) are never read, and a file outside your machine's build tags neither, see [Build tags](#build-tags).
+
+The file starts with `# Generated by github.com/bidirekt/go-sdk. Do not edit.` and has the `provides`, `consumes` and `schemas` sections that have content: resources by path, method and status, schemas in alphabetical order, fields in the order of the struct and members in the order declared.
+
+Each error goes to stderr as `file:line message`, with the file relative to the current folder, sorted by file and line; on an error nothing is written and the exit code is 1. A warning is printed as `file:line warning: message` in the same list and doesn't change the exit code. A project with no declaration writes nothing and exits with 1.
+
+## Reference
+
+### Declarations
+
+`generate` recognizes a call by the package it comes from, `github.com/bidirekt/go-sdk`, so an import with an alias or with a dot works, and a `Provides` of another package is ignored. A call counts in any `.go` file of the project, at package level or inside a function.
+
+| Function | Declares |
+| --- | --- |
+| `bidirekt.Provides(method, path, options...)` | a resource the service provides |
+| `bidirekt.Consumes(provider, method, path, options...)` | a resource the service consumes from `provider` |
+| `bidirekt.Request(body, bidirekt.Named(...))` | the request body of the resource, an option of `Provides` or `Consumes` |
+| `bidirekt.Response(status, body, bidirekt.Named(...))` | one response status and its body, an option of `Provides` or `Consumes` |
+| `bidirekt.Named(name)` | the name of a body's schema, or of a schema in `bidirekt.Schema` |
+| `bidirekt.Schema(value, bidirekt.Named(name))` | another name for the schema of a struct or an enum |
+| `bidirekt.Enum(values...)` | the enum of a named string type, with these values |
+
+- The method, path, provider, status and names are constants: a literal, `http.MethodGet`, `http.StatusOK` or a `const` of your code. Anything else stops `generate`, which never runs the code.
+- The method is uppercase (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`) and the path is written as the contract writes it, with a `*` for each dynamic segment. `generate` never reads a framework's routes and writes the path as you declare it; `bidirekt validate` rejects a `{id}`. A status with a leading zero (`0200`, which Go reads as octal) stops `generate`.
+- The options are written in place, as arguments of `Provides` and `Consumes`: an option kept in a variable, passed with `opts...` or called anywhere else stops `generate`, and so do the arguments of any declaration given by a function that returns several values, as in `bidirekt.Provides(route())`.
+- `Provides` and `Consumes` count only in the project's packages. `Enum` and `Schema` count in any package the project imports from a local module (a `go.work` module or a `replace` to a folder), so a shared module can hold the schemas and enums of several services: each service's contract has only those it uses.
+
+### Bodies
+
+A body is the static type of the expression, and a pointer counts by the type it points to:
+
+| Body | Contract |
+| --- | --- |
+| a schema struct, `pets.Pet{}` or `&pets.Pet{}` | `Pet` |
+| `[]pets.Pet{}` | `PetList`, an array of `Pet` |
+| `[]*pets.Pet{}` | `PetList`, with `nullable` items |
+| a list with `bidirekt.Named("PetCollection")` | `PetCollection` |
+| a named slice or map type, `type Pets []Pet` | `Pets` |
+| `map[string]pets.Pet{}` with `bidirekt.Named("PetsByName")` | `PetsByName`, a `map` |
+| an anonymous struct with `bidirekt.Named("Health")` | `Health`, an `object` |
+| `nil` | `~` |
+
+Without `bidirekt.Request`, the resource has no `request` key; `bidirekt.Request(nil)` writes `request: ~`. An anonymous struct or a map body needs `bidirekt.Named`; a struct that is already a schema takes another name only with `bidirekt.Schema`. A primitive, `any` or `map[string]any` body stops `generate`: declare a struct. A status declared twice in one resource stops `generate`. The same list, or the same anonymous body with the same name, is written once however many resources use it.
+
+The same method and path provided twice stops `generate`. The same resource consumed by several `bidirekt.Consumes` is written once with the statuses of all of them, which must declare the same request and the same schema for a status they share.
+
+### Fields
+
+A field is in the contract when its struct tag has `bidirekt:"field"`, followed by options `key=value` separated by spaces:
+
+| Option | What it declares |
+| --- | --- |
+| `name=birth_date` | the field's name in the contract; without it, the `json` tag's name, or the Go field's name |
+| `type=float` | the whole type of the field, see [Types](#types) |
+| `items=Owner` | the type of the items of `type=array` |
+| `values=string` | the type of the values of `type=map` |
+| `optional=true` | whether the field can be absent |
+| `nullable=true` | whether the field can be `null` |
+| `description='In kilograms'` | the field's description |
+| `union={person: Owner, shelter: Shelter}` | the schema of each member of a union |
+
+A `description` is ASCII letters and digits with one space between words (`^[A-Za-z0-9]+( [A-Za-z0-9]+)*$`), between single quotes when it has a space, since the whole tag is already a Go string in double quotes. Only `description` takes quotes and only `union` takes braces; quotes or braces anywhere else stop `generate`, as do an unknown or repeated option, a malformed value, and a `bidirekt` tag without `field`.
+
+A struct tag Go cannot read (`json:"name",bidirekt:"field"`, `json: "name" bidirekt:"field"`) stops `generate` instead of leaving the field out, and a key close to `bidirekt` (`bidirect`, `Bidirekt`) is a warning. A marked field `encoding/json` never writes, unexported or with `json:"-"`, stops `generate`.
+
+### Types
+
+| Go | Contract |
+| --- | --- |
+| `string`, `bool` | `string`, `boolean` |
+| `int`, `int8`…`int64`, `uint`, `uint8`…`uint64` | `integer` |
+| `float32`, `float64`, `json.Number` | `number`; `float` only when declared |
+| a named type over a primitive, `type PetID int64` | the primitive |
+| a named string type with `bidirekt.Enum` | `ref` to the enum |
+| `,string` in the `json` tag | `string` |
+| `*T` | `T` with `nullable: true` |
+| `[]T`, `[N]T`, a named slice type | `type: array` |
+| `map[K]T`, with `K` a string type | `type: map` |
+| a schema struct | `ref` |
+| an anonymous struct | `type: object`, inline |
+| an interface with `union=` | `type: union` |
+
+A declared `type` is the whole type of the field, in the contract's words, even where Go has no translation: a primitive (`string`, `integer`, `float`, `number`, `boolean`), the name of a schema, `array` with `items=`, or `map` with `values=`; `items` and `values` take a primitive or a schema name. A short form like `type=[]Pet` stops `generate`, which shows the long one. `optional` and `nullable` still come from Go when not declared, and a declared one wins.
+
+These types stop `generate` at the field, which asks for a declared `type`: `time.Time`, a type with its own `MarshalJSON` or `MarshalText`, `any` and an interface without `union=`, a map whose key is not a string type (declare `type=map values=...`), `[]byte` and a named type over it, a channel, a function and `complex64`/`complex128`. A struct with no marked field used by a field or a body stops `generate` too, as does a generic struct, and a struct with marked fields and its own `MarshalJSON` or `MarshalText`, whose marked fields `encoding/json` never writes.
+
+### Names
+
+A schema is named after its Go type, and an enum too; `bidirekt.Schema(value, bidirekt.Named("..."))` gives it another name. A list body is named `<Schema>List` unless it has `bidirekt.Named`. A schema name in a tag (`type=`, `items=`, `values=`, `union=`) is the name in the contract, which is not always the type's name; a name no schema declares stops `generate`. Two schemas of the contract with the same name, like two `Pet` types of different packages, stop `generate`: rename one with `bidirekt.Schema`. A type the contract leaves out, an enum or struct of another module it does not use or a struct that only appears embedded, never collides.
+
+A struct with a marked field in the project is written even when no resource uses it, unless it only appears embedded in other structs. A struct of another module, a dependency or a module of your `go.work`, is read from its types when the contract uses it, with the same tag rules.
+
+### Enums and unions
+
+`bidirekt.Enum(PetStatusAvailable, PetStatusAdopted)` declares the enum of the named string type of its values, `PetStatus`, with the values in the order of the arguments; `bidirekt.Enum[PetStatus]("available", "adopted")` names the type. The values come from the arguments, never from the constants of the type. A field of that type is a `ref` to the enum, and a named string type without `bidirekt.Enum` is a `string`. An enum of the project is written even when no field uses it, and one from outside the project only when the contract uses it, as a struct is. A repeated or empty value, an `Enum` without values or on plain `string`, and two `Enum` of one type stop `generate`.
+
+A field of an interface type with `union={card: Card, pix: Pix}` is a `union` whose members are `ref`s to those schemas; on a `[]Payment` or a `map[string]Payment` field, the union is the items or the values. Each member is a struct schema that implements the interface, by value or by pointer, and appears once.
+
+### Embedded structs
+
+A struct embedded without a name in its `json` tag needs no mark: its marked fields come into the struct at its place, also by pointer and when the embedded type is not exported, as `encoding/json` does. Through a pointer they are `optional`, since `encoding/json` leaves them out when the pointer is nil. When two fields write the same name, the shallower wins, then the one with a `json` tag; when `encoding/json` would write neither, `generate` stops. A struct embedded with a name in its `json` tag is a field like any other. Two fields with the same name in the contract stop `generate`.
+
+### Describe what the code does
+
+The contract describes what the code writes, not the type it declares. The Go type is where each field starts, and the tag's options apply the rule: a declared `type`, `optional` or `nullable` wins over the Go type. In the same way:
+
+- A `*string` that the service always fills declares `nullable=false`.
+- A `time.Time` that the body carries as a string declares `type=string`.
+- A field the code leaves out of some bodies declares `optional=true`.
+
+### What `encoding/json` writes
+
+`generate` follows what `encoding/json` writes:
+
+- A `float64` with no fraction, like `50.0`, is written as `50`, so a float is `number`. Declare `type=float` only when the code writes the fraction.
+- A nil pointer is written as `null`, so a pointer is `nullable`. With `omitempty` or `omitzero` it is left out instead, so the field is `optional` and not `nullable`.
+- `omitempty` leaves out a false, zero, empty string, nil pointer or interface, and an empty slice or map, so those fields are `optional`; it never leaves out a struct or a fixed-size array, which stay required. `omitzero` leaves out the zero value of any type.
+- A nil slice or map is written as `null`, but the contract writes them without `nullable`: declare `nullable=true` when the code sends a nil one, or `optional=true` with `omitempty`.
+
+### Build tags
+
+`generate` reads the files the build context of the machine it runs on includes, as `go build` there would. A file outside it (`//go:build linux` read on a Mac, or a custom tag) is not read: keep declarations and marked structs in files every build includes, or run `generate` where the build includes them.
+
+### Errors
+
+`generate` stops at a mistake and prints where it is and how to fix it. The ones you meet most:
+
+- `cannot translate "time.Time" to a contract type: declare it with bidirekt:"field type=<type>"`
+- `cannot translate struct "Owner": mark the fields of the contract with bidirekt:"field"`
+- `cannot read "descripton='In kilograms'" in the bidirekt tag: write "<key>=<value>" with key name, type, items, values, optional, nullable, description or union`
+- `description "In kilograms." must be ASCII letters and digits, with single spaces between words: remove or replace the other characters`
+- `an anonymous struct body has no schema name: name it with bidirekt.Named("<name>")`
+- `method "get" must be uppercase: write "GET"`
+- `schema "PetCollection" is not declared: reference a schema by its name in the contract`
+- `schema name "Pet" is declared more than once: rename one with bidirekt.Schema(..., bidirekt.Named("<name>"))`
+
+`generate` stops with Go's own messages when a package the service compiles does not compile: a package with a declaration, a package that holds a schema of the contract, or a package they import, directly or not. As `go build` does, it prints the errors of the package that fails, not those of the packages that import it. Errors in the other packages of the module, such as another `cmd/` or a package nothing of the service imports, don't stop it.
+
+## Docs
+
+https://bidirekt.com/docs
+
 ## Development
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md). From the repository root, turn on the `pre-push` hook, which runs the Go checks of CI before every push: `gofmt` from the toolchain in `go.mod`, `go vet`, `golangci-lint`, `go-arch-lint`, `go test` and `govulncheck`.
+Read [CONTRIBUTING.md](CONTRIBUTING.md). From the repository root, turn on the `pre-push` hook, which runs the Go checks of CI before every push: `gofmt` from the toolchain in `cmd/go-sdk/go.mod`, then `go vet`, `golangci-lint`, `go-arch-lint`, `go test` and `govulncheck` in each of the two modules, the root and `cmd/go-sdk`.
 
 ```sh
 git config core.hooksPath .githooks
 ```
+
+To run only the tests, run `go test -count=1 ./...` in the root and in `cmd/go-sdk`: some tests run `go` commands whose inputs the test cache doesn't track.
+
+`go test ./...` in `cmd/go-sdk` also runs `cmd/go-sdk/tests/readme`, which runs every example between `## Quickstart` and ``## The `generate` command`` through `generate`, in the module `example.com/petstore`, and compares the result with the YAML or the lines this README shows. An example is the fenced blocks right below a line with only the file's path in backticks, followed by a `yaml` block (`contracts/generated.yaml`) or a `text` block (stderr). The same test checks that the two `--check` messages above are the ones `generate` prints, and `cmd/go-sdk/tests/install` runs the commands of [Installation](#installation) in a new module.
 
 ## License
 

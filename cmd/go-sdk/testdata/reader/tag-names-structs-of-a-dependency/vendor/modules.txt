@@ -1,0 +1,3 @@
+# example.com/shared v1.0.0
+## explicit; go 1.26.0
+example.com/shared

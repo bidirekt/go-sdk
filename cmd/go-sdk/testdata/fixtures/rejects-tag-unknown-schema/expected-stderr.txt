@@ -1,0 +1,4 @@
+pet.go:13 schema "Person" is not declared: reference a schema by its name in the contract
+pet.go:14 schema "Friend" is not declared: reference a schema by its name in the contract
+pet.go:15 schema "Note" is not declared: reference a schema by its name in the contract
+pet.go:16 schema "Owner" is not declared: reference a schema by its name in the contract

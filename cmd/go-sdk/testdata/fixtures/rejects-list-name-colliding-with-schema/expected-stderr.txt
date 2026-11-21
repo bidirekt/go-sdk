@@ -1,0 +1,4 @@
+routes.go:7 list name "Pet" is also the name of another schema: give the list a distinct name
+routes.go:11 list name "PetList" is also the name of another schema: give the list a distinct name
+routes.go:16 list name "PetList" is also the name of another schema: give the list a distinct name
+routes.go:20 list name "Pet" is also the name of another schema: give the list a distinct name

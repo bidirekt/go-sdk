@@ -3,9 +3,17 @@ package main
 import (
 	"fmt"
 	"os"
+
+	"github.com/bidirekt/go-sdk/cmd/go-sdk/internal/command"
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "Usage: go-sdk generate [--check] [--project <dir>] [--out <file>]")
-	os.Exit(1)
+	cwd, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cannot read the current folder: %s\n", err)
+		os.Exit(1)
+	}
+	result := command.ArgsToResult(os.Args[1:], cwd)
+	fmt.Fprint(os.Stderr, result.Stderr)
+	os.Exit(result.ExitCode)
 }

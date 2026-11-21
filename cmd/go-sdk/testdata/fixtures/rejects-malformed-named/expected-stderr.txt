@@ -1,0 +1,7 @@
+routes.go:8 bidirekt.Named is declared more than once in this bidirekt.Response: keep one
+routes.go:12 bidirekt.Named is empty: write the name of the schema
+routes.go:16 the body is the schema "Pet", whose name bidirekt.Named cannot change: rename it with bidirekt.Schema(..., bidirekt.Named("PetResponse"))
+routes.go:20 a nil body has no schema to name: remove bidirekt.Named
+routes.go:24 the body is the schema "Pets", whose name bidirekt.Named cannot change: rename it with bidirekt.Schema(..., bidirekt.Named("AllPets"))
+routes.go:28 the body is the schema "PetsByName", whose name bidirekt.Named cannot change: rename it with bidirekt.Schema(..., bidirekt.Named("PetIndex"))
+routes.go:32 "bidirekt.Name{}" is not an option written in place: write bidirekt.Named("<name>") as an argument of bidirekt.Response
