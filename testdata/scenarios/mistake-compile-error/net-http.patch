@@ -1,0 +1,13 @@
+diff --git a/internal/httpapi/pets.go b/internal/httpapi/pets.go
+index d3c1f7b..038ecea 100644
+--- a/internal/httpapi/pets.go
++++ b/internal/httpapi/pets.go
+@@ -54,7 +54,7 @@ var _ = bidirekt.Provides("GET", "/pets/*",
+ 
+ func (this *PetHandler) Get(w http.ResponseWriter, r *http.Request) {
+ 	id, valid := pathID(r)
+-	pet, found := this.store.Find(id)
++	pet, found := this.store.Get(id)
+ 	if !valid || !found {
+ 		w.WriteHeader(http.StatusNotFound)
+ 		return

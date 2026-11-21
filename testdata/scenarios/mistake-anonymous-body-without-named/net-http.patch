@@ -1,0 +1,28 @@
+diff --git a/internal/httpapi/pets.go b/internal/httpapi/pets.go
+index d3c1f7b..e8f89bb 100644
+--- a/internal/httpapi/pets.go
++++ b/internal/httpapi/pets.go
+@@ -22,6 +22,7 @@ func (this *PetHandler) Register(mux *http.ServeMux) {
+ 	mux.HandleFunc("GET /pets/{id}", this.Get)
+ 	mux.HandleFunc("PATCH /pets/{id}/status", this.ChangeStatus)
+ 	mux.HandleFunc("DELETE /pets/{id}", this.Delete)
++	mux.HandleFunc("GET /pets/count", this.Count)
+ }
+ 
+ var _ = bidirekt.Provides("GET", "/pets",
+@@ -97,3 +98,15 @@ func (this *PetHandler) Delete(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 	w.WriteHeader(http.StatusNoContent)
+ }
++
++var _ = bidirekt.Provides("GET", "/pets/count",
++	bidirekt.Response(http.StatusOK, struct {
++		Total int `json:"total" bidirekt:"field"`
++	}{}),
++)
++
++func (this *PetHandler) Count(w http.ResponseWriter, r *http.Request) {
++	writeJSON(w, http.StatusOK, struct {
++		Total int `json:"total"`
++	}{Total: len(this.store.All())})
++}

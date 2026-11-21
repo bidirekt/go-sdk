@@ -1,0 +1,1 @@
+internal/httpapi/pets.go:103 an anonymous struct body has no schema name: name it with bidirekt.Named("<name>")

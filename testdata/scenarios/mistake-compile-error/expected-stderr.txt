@@ -1,0 +1,1 @@
+internal/httpapi/pets.go:57 this.store.Get undefined (type *pets.Store has no field or method Get)

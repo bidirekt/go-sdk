@@ -1,0 +1,1 @@
+internal/pets/pet.go:24 description "Weight (kg)" must be ASCII letters and digits, with single spaces between words: remove or replace the other characters

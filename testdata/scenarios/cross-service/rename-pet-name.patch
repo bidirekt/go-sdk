@@ -1,0 +1,26 @@
+diff --git a/main.go b/main.go
+index 6919ed5..a76bfe3 100644
+--- a/main.go
++++ b/main.go
+@@ -46,7 +46,7 @@ func (this *server) createPet(w http.ResponseWriter, r *http.Request) {
+ 	}
+ 	this.mutex.Lock()
+ 	defer this.mutex.Unlock()
+-	pet := pets.Pet{ID: int64(len(this.pets) + 1), Name: newPet.Name, Status: pets.StatusAvailable, BirthDate: newPet.BirthDate}
++	pet := pets.Pet{ID: int64(len(this.pets) + 1), Nickname: newPet.Name, Status: pets.StatusAvailable, BirthDate: newPet.BirthDate}
+ 	this.pets = append(this.pets, pet)
+ 	writeJSON(w, http.StatusCreated, pet)
+ }
+diff --git a/pets/pet.go b/pets/pet.go
+index fe73f2f..5d2dcfe 100644
+--- a/pets/pet.go
++++ b/pets/pet.go
+@@ -14,7 +14,7 @@ var _ = bidirekt.Enum(StatusAvailable, StatusPending, StatusSold)
+ 
+ type Pet struct {
+ 	ID        int64   `json:"id" bidirekt:"field"`
+-	Name      string  `json:"name" bidirekt:"field"`
++	Nickname  string  `json:"nickname" bidirekt:"field"`
+ 	Status    Status  `json:"status" bidirekt:"field"`
+ 	BirthDate *string `json:"birthDate" bidirekt:"field description='ISO 8601 date'"`
+ }

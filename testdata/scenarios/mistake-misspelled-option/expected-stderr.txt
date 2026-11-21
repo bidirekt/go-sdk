@@ -1,0 +1,1 @@
+internal/pets/pet.go:24 cannot read "descripton='In kilograms'" in the bidirekt tag: write "<key>=<value>" with key name, type, items, values, optional, nullable, description or union
