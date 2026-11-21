@@ -1,0 +1,13 @@
+diff --git a/internal/httpapi/pets.go b/internal/httpapi/pets.go
+index d3c1f7b..5e13322 100644
+--- a/internal/httpapi/pets.go
++++ b/internal/httpapi/pets.go
+@@ -47,7 +47,7 @@ func (this *PetHandler) Create(w http.ResponseWriter, r *http.Request) {
+ 	writeJSON(w, http.StatusCreated, this.store.Add(newPet))
+ }
+ 
+-var _ = bidirekt.Provides("GET", "/pets/*",
++var _ = bidirekt.Provides("get", "/pets/*",
+ 	bidirekt.Response(http.StatusOK, pets.Pet{}),
+ 	bidirekt.Response(http.StatusNotFound, nil),
+ )

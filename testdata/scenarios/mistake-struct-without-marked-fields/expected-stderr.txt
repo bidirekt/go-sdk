@@ -1,0 +1,2 @@
+internal/httpapi/adoptions.go:16 cannot translate struct "Adoption": mark the fields of the contract with bidirekt:"field"
+internal/httpapi/adoptions.go:17 cannot translate struct "Adoption": mark the fields of the contract with bidirekt:"field"

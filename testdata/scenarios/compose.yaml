@@ -1,0 +1,42 @@
+include:
+  - ../e2e/compose.yaml
+
+# A go-<version> service per Go version the SDK supports, picked by the .go-version of a scenario.
+x-go: &go
+  profiles: [go]
+  environment:
+    GOMODCACHE: /go-cache/mod
+    GOCACHE: /go-cache/build
+    GOTOOLCHAIN: local
+    # The copies live inside the checkout: git apply works on them as on a folder of its own, not in the SDK's repository.
+    GIT_CEILING_DIRECTORIES: /sdk/testdata/scenarios
+  volumes:
+    - ../..:/sdk:ro
+    # Over the checkout's testdata/scenarios: a copy keeps the path to the checkout its go.mod replaces with, ../../..
+    - work:/sdk/testdata/scenarios
+    - .:/scenarios:ro
+    - go-cache:/go-cache
+
+services:
+  go-1.26:
+    <<: *go
+    image: golang:1.26.11-trixie
+
+  go-1.27:
+    <<: *go
+    image: golang:1.27.4-trixie
+
+  bidirekt:
+    image: ghcr.io/bidirekt/cli:0.3.0
+    profiles: [cli]
+    network_mode: service:broker
+    working_dir: /work
+    environment:
+      BIDIREKT_BROKER_URL: http://localhost:8080
+      BIDIREKT_API_KEY:
+    volumes:
+      - work:/work:ro
+
+volumes:
+  work:
+  go-cache:

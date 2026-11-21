@@ -1,0 +1,13 @@
+diff --git a/internal/pets/pet.go b/internal/pets/pet.go
+index 03036bd..a98f72a 100644
+--- a/internal/pets/pet.go
++++ b/internal/pets/pet.go
+@@ -23,7 +23,7 @@ type Pet struct {
+ 	Tags      []string  `json:"tags" bidirekt:"field"`
+ 	Weight    float64   `json:"weight" bidirekt:"field description='In kilograms'"`
+ 	BirthDate *string   `json:"birthDate" bidirekt:"field"`
+-	CreatedAt time.Time `json:"createdAt" bidirekt:"field type=string"`
++	CreatedAt time.Time `json:"createdAt" bidirekt:"field"`
+ }
+ 
+ type NewPet struct {

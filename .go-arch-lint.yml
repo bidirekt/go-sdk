@@ -4,6 +4,7 @@ allow:
   depOnAnyVendor: false
 exclude:
   - cmd
+  - testdata
 components:
   bidirekt:
     in: .

@@ -1,0 +1,1 @@
+internal/httpapi/pets.go:50 method "get" must be uppercase: write "GET"

@@ -1,0 +1,52 @@
+diff --git a/internal/httpapi/adoptions.go b/internal/httpapi/adoptions.go
+new file mode 100644
+index 0000000..3fe3e1a
+--- /dev/null
++++ b/internal/httpapi/adoptions.go
+@@ -0,0 +1,34 @@
++package httpapi
++
++import (
++	"encoding/json"
++	"net/http"
++
++	"github.com/bidirekt/go-sdk"
++)
++
++type Adoption struct {
++	PetID   int64  `json:"petId"`
++	Adopter string `json:"adopter"`
++}
++
++var _ = bidirekt.Provides("POST", "/pets/*/adoptions",
++	bidirekt.Request(Adoption{}),
++	bidirekt.Response(http.StatusCreated, Adoption{}),
++	bidirekt.Response(http.StatusNotFound, nil),
++)
++
++func (this *PetHandler) Adopt(w http.ResponseWriter, r *http.Request) {
++	id, valid := pathID(r)
++	if _, found := this.store.Find(id); !valid || !found {
++		w.WriteHeader(http.StatusNotFound)
++		return
++	}
++	var adoption Adoption
++	if err := json.NewDecoder(r.Body).Decode(&adoption); err != nil {
++		w.WriteHeader(http.StatusBadRequest)
++		return
++	}
++	adoption.PetID = id
++	writeJSON(w, http.StatusCreated, adoption)
++}
+diff --git a/internal/httpapi/pets.go b/internal/httpapi/pets.go
+index d3c1f7b..9fdd6b0 100644
+--- a/internal/httpapi/pets.go
++++ b/internal/httpapi/pets.go
+@@ -22,6 +22,7 @@ func (this *PetHandler) Register(mux *http.ServeMux) {
+ 	mux.HandleFunc("GET /pets/{id}", this.Get)
+ 	mux.HandleFunc("PATCH /pets/{id}/status", this.ChangeStatus)
+ 	mux.HandleFunc("DELETE /pets/{id}", this.Delete)
++	mux.HandleFunc("POST /pets/{id}/adoptions", this.Adopt)
+ }
+ 
+ var _ = bidirekt.Provides("GET", "/pets",
