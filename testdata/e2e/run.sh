@@ -12,15 +12,17 @@ compose() {
 }
 
 failed=0
+# The down runs even when a step before it fails, like the log on an output pipe that closed (| head).
 cleanup() {
+  set +e
   if [ "$failed" != 0 ]; then
-    compose logs broker
+    compose logs broker >&2
   fi
   compose down -v --remove-orphans
 }
 trap 'failed=$?; cleanup' EXIT
-# dash and busybox ash skip the EXIT trap when a signal kills the shell.
-trap 'exit 1' HUP INT TERM
+# dash and busybox ash skip the EXIT trap when a signal kills the shell, PIPE included when the output pipe closes.
+trap 'exit 1' HUP INT PIPE TERM
 
 compose up -d --wait
 
