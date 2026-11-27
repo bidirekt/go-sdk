@@ -27,7 +27,7 @@ services:
     image: golang:1.27.4-trixie
 
   bidirekt:
-    image: ghcr.io/bidirekt/cli:0.3.0
+    image: ghcr.io/bidirekt/cli:0.4.0
     profiles: [cli]
     network_mode: service:broker
     working_dir: /work
