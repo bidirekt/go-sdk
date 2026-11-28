@@ -46,9 +46,7 @@ The `bidirekt` package your code imports holds the declarations of the contract.
 ```go
 package pets
 
-import (
-	"github.com/bidirekt/go-sdk"
-)
+import "github.com/bidirekt/go-sdk"
 
 type PetStatus string
 
@@ -64,15 +62,23 @@ type Owner struct {
 }
 
 type Pet struct {
-	ID        int64             `json:"id" bidirekt:"field"`
-	Name      string            `json:"name" bidirekt:"field"`
-	Status    PetStatus         `json:"status" bidirekt:"field"`
-	Owner     *Owner            `json:"owner" bidirekt:"field"`
-	Tags      []string          `json:"tags" bidirekt:"field"`
-	Notes     map[string]string `json:"notes" bidirekt:"field"`
-	Weight    float64           `json:"weight" bidirekt:"field description='In kilograms'"`
-	Nickname  string            `json:"nickname,omitempty" bidirekt:"field"`
-	CreatedBy string            `json:"-"`
+	ID int64 `json:"id" bidirekt:"field"`
+
+	Name string `json:"name" bidirekt:"field"`
+
+	Status PetStatus `json:"status" bidirekt:"field"`
+
+	Owner *Owner `json:"owner" bidirekt:"field"`
+
+	Tags []string `json:"tags" bidirekt:"field"`
+
+	Notes map[string]string `json:"notes" bidirekt:"field"`
+
+	Weight float64 `json:"weight" bidirekt:"field description='In kilograms'"`
+
+	Nickname string `json:"nickname,omitempty" bidirekt:"field"`
+
+	CreatedBy string `json:"-"`
 }
 
 type NewPet struct {
@@ -98,7 +104,9 @@ type Rating struct {
 	Stars int `json:"stars" bidirekt:"field"`
 }
 
-var _ = bidirekt.Provides(http.MethodGet, "/pets/*",
+var _ = bidirekt.Provides(
+	http.MethodGet,
+	"/pets/*",
 	bidirekt.Response(http.StatusOK, pets.Pet{}),
 	bidirekt.Response(http.StatusNotFound, nil),
 )
@@ -112,7 +120,9 @@ func getPet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pet)
 }
 
-var _ = bidirekt.Provides(http.MethodPost, "/pets",
+var _ = bidirekt.Provides(
+	http.MethodPost,
+	"/pets",
 	bidirekt.Request(pets.NewPet{}),
 	bidirekt.Response(http.StatusCreated, pets.Pet{}),
 	bidirekt.Response(http.StatusBadRequest, nil),
@@ -129,7 +139,10 @@ func createPet(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pet)
 }
 
-var _ = bidirekt.Consumes("petstore_reviews", http.MethodGet, "/ratings/*",
+var _ = bidirekt.Consumes(
+	"petstore_reviews",
+	http.MethodGet,
+	"/ratings/*",
 	bidirekt.Response(http.StatusOK, Rating{}),
 	bidirekt.Response(http.StatusNotFound, nil),
 )
@@ -239,6 +252,7 @@ import (
 
 type Timestamps struct {
 	CreatedAt string `json:"createdAt" bidirekt:"field"`
+
 	UpdatedAt string `json:"updatedAt" bidirekt:"field"`
 }
 
@@ -257,24 +271,36 @@ func (*Pix) payment() {}
 
 type Order struct {
 	ID int64 `json:"id" bidirekt:"field"`
+
 	Timestamps
+
 	Payment Payment `json:"payment" bidirekt:"field union={card: Card, pix: Pix}"`
+
 	Address struct {
 		City string `json:"city" bidirekt:"field"`
 	} `json:"address" bidirekt:"field"`
+
 	PaidAt *time.Time `json:"paidAt,omitempty" bidirekt:"field type=string"`
 }
 
 var _ = bidirekt.Schema(Order{}, bidirekt.Named("OrderResponse"))
 
-var _ = bidirekt.Provides(http.MethodGet, "/orders",
+var _ = bidirekt.Provides(
+	http.MethodGet,
+	"/orders",
 	bidirekt.Response(http.StatusOK, []Order{}, bidirekt.Named("Orders")),
 )
 
-var _ = bidirekt.Provides(http.MethodGet, "/orders/summary",
-	bidirekt.Response(http.StatusOK, struct {
-		Total int `json:"total" bidirekt:"field"`
-	}{}, bidirekt.Named("OrderSummary")),
+var _ = bidirekt.Provides(
+	http.MethodGet,
+	"/orders/summary",
+	bidirekt.Response(
+		http.StatusOK,
+		struct {
+			Total int `json:"total" bidirekt:"field"`
+		}{},
+		bidirekt.Named("OrderSummary"),
+	),
 )
 ```
 
@@ -354,20 +380,24 @@ import (
 )
 
 type Pet struct {
-	Name      string    `json:"name" bidirekt:"field"`
+	Name string `json:"name" bidirekt:"field"`
+
 	BirthDate time.Time `json:"birthDate" bidirekt:"field"`
-	Weight    float64   `json:"weight" bidirekt:"field descripton='In kilograms'"`
+
+	Weight float64 `json:"weight" bidirekt:"field descripton='In kilograms'"`
 }
 
-var _ = bidirekt.Provides("get", "/pets/*",
+var _ = bidirekt.Provides(
+	"get",
+	"/pets/*",
 	bidirekt.Response(http.StatusOK, Pet{}),
 )
 ```
 
 ```text
-pet.go:12 cannot translate "time.Time" to a contract type: declare it with bidirekt:"field type=<type>"
-pet.go:13 cannot read "descripton='In kilograms'" in the bidirekt tag: write "<key>=<value>" with key name, type, items, values, optional, nullable, description or union
-pet.go:16 method "get" must be uppercase: write "GET"
+pet.go:13 cannot translate "time.Time" to a contract type: declare it with bidirekt:"field type=<type>"
+pet.go:15 cannot read "descripton='In kilograms'" in the bidirekt tag: write "<key>=<value>" with key name, type, items, values, optional, nullable, description or union
+pet.go:19 method "get" must be uppercase: write "GET"
 ```
 
 ## The `generate` command
